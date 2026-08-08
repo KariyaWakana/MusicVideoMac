@@ -1,0 +1,16 @@
+{
+  "albumArtist" : "<script>alert('artist')</script> & 🔴 RTL ➡️ \u202eمرحبا العالم\u202c ⬅️ Zalgo TͥHͪIͮS͛ 𒈙𒈙𒈙𒈙",
+  "albumTitle" : "This is an extremely long title that just keeps going on and on and on and on. It is designed to test if the layout engine can handle text truncation or wrapping properly without blowing up the SwiftUI view hierarchy or causing a CoreText layout crash. 1234567890 👨‍👩‍👧‍👦 🎉 ✨",
+  "tracks" : [
+    {
+      "duration" : 5.123,
+      "filePath" : "/Users/cgga/Documents/个人文件/MusicVideoMacApp/TestMedia/Malicious_Album/01_Malicious.mp3",
+      "id" : "C7C870C5-812C-4251-A3D9-9231CA6BBD78",
+      "title" : "\"Quote\" 'Quote' \\Backslash\\ /Slash/ \nNewline \rReturn \tTab <HTML> &amp;",
+      "artist" : "Null Byte \u0000 Test"
+    }
+  ],
+  "cjkVariant" : "Auto",
+  "year" : "9999",
+  "genre" : "🔥 Malicious Test Data 🔥"
+}

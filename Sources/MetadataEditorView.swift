@@ -48,9 +48,11 @@ struct MetadataEditorView: View {
                 
                 Form {
                     Section("Album Information") {
-                        TextField("Album Title", text: $viewModel.meta.title)
+                        TextField("Album Title", text: $viewModel.meta.title, axis: .vertical)
+                            .lineLimit(1...3)
                             .disableAutocorrection(true)
-                        TextField("Album Artist", text: $viewModel.meta.artist)
+                        TextField("Album Artist", text: $viewModel.meta.artist, axis: .vertical)
+                            .lineLimit(1...2)
                             .disabled(isCompilation)
                             .disableAutocorrection(true)
                         TextField("Year", text: $viewModel.meta.year)
@@ -88,13 +90,15 @@ struct MetadataEditorView: View {
                             .foregroundColor(.secondary)
                             .frame(width: 30, alignment: .leading)
                         
-                        TextField("Track Title", text: $track.title)
+                        TextField("Track Title", text: $track.title, axis: .vertical)
+                            .lineLimit(1...4)
                             .disableAutocorrection(true)
                         
                         TextField("Track Artist (Optional)", text: Binding(
                             get: { track.artist ?? "" },
                             set: { track.artist = $0.isEmpty ? nil : $0 }
-                        ))
+                        ), axis: .vertical)
+                        .lineLimit(1...2)
                         .disableAutocorrection(true)
                     }
                     .padding(.vertical, 4)

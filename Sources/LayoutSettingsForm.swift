@@ -87,9 +87,47 @@ struct LayoutSettingsForm: View {
                 }
                 
                 VStack(spacing: 12) {
-                    NumericSlider(title: "Title Size", systemImage: "textformat.size.larger", value: $titleFontSize, range: 20...120)
-                    NumericSlider(title: "Artist Size", systemImage: "textformat.size", value: $subtitleFontSize, range: 20...80)
-                    NumericSlider(title: "Track Size", systemImage: "textformat.size.smaller", value: $trackFontSize, range: 15...60)
+                    VStack(alignment: .leading, spacing: 4) {
+                        NumericSlider(title: "Title Size", systemImage: "textformat.size.larger", value: $titleFontSize, range: 20...120)
+                        if viewModel.isTitleOverflowing(titleFontSize: titleFontSize, subtitleFontSize: subtitleFontSize, trackFontSize: trackFontSize, fontFamily: fontFamily, layoutMode: layoutMode, trackNumberStyle: trackNumberStyle, isCompilation: isCompilation, coverScale: coverScale) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.yellow)
+                                Text("Title may be truncated").font(.caption).foregroundColor(.secondary)
+                                Spacer()
+                                Button("Auto Fit") {
+                                    titleFontSize = viewModel.autoFitTitle(currentSize: titleFontSize, subtitleFontSize: subtitleFontSize, trackFontSize: trackFontSize, fontFamily: fontFamily, layoutMode: layoutMode, trackNumberStyle: trackNumberStyle, isCompilation: isCompilation, coverScale: coverScale)
+                                }.font(.caption).buttonStyle(.plain).foregroundColor(.accentColor)
+                            }
+                        }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        NumericSlider(title: "Artist Size", systemImage: "textformat.size", value: $subtitleFontSize, range: 20...80)
+                        if viewModel.isSubtitleOverflowing(titleFontSize: titleFontSize, subtitleFontSize: subtitleFontSize, trackFontSize: trackFontSize, fontFamily: fontFamily, layoutMode: layoutMode, trackNumberStyle: trackNumberStyle, isCompilation: isCompilation, coverScale: coverScale) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.yellow)
+                                Text("Artist/Date may be truncated").font(.caption).foregroundColor(.secondary)
+                                Spacer()
+                                Button("Auto Fit") {
+                                    subtitleFontSize = viewModel.autoFitSubtitle(currentSize: subtitleFontSize, titleFontSize: titleFontSize, trackFontSize: trackFontSize, fontFamily: fontFamily, layoutMode: layoutMode, trackNumberStyle: trackNumberStyle, isCompilation: isCompilation, coverScale: coverScale)
+                                }.font(.caption).buttonStyle(.plain).foregroundColor(.accentColor)
+                            }
+                        }
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 4) {
+                        NumericSlider(title: "Track Size", systemImage: "textformat.size.smaller", value: $trackFontSize, range: 15...60)
+                        if viewModel.isTrackOverflowing(titleFontSize: titleFontSize, subtitleFontSize: subtitleFontSize, trackFontSize: trackFontSize, fontFamily: fontFamily, layoutMode: layoutMode, trackNumberStyle: trackNumberStyle, isCompilation: isCompilation, coverScale: coverScale) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.yellow)
+                                Text("Some tracks may be truncated").font(.caption).foregroundColor(.secondary)
+                                Spacer()
+                                Button("Auto Fit") {
+                                    trackFontSize = viewModel.autoFitTracks(currentSize: trackFontSize, titleFontSize: titleFontSize, subtitleFontSize: subtitleFontSize, fontFamily: fontFamily, layoutMode: layoutMode, trackNumberStyle: trackNumberStyle, isCompilation: isCompilation, coverScale: coverScale)
+                                }.font(.caption).buttonStyle(.plain).foregroundColor(.accentColor)
+                            }
+                        }
+                    }
                 }
             } header: { Text("Typography").font(.headline) }
             
@@ -192,15 +230,29 @@ struct LayoutSettingsForm: View {
     }
     
     private func extractColors(from image: NSImage) {
-        let bgColor = FrameRenderer.extractAverageColor(from: image)
-        if let nsColor = NSColor(bgColor).usingColorSpace(.sRGB) {
-            bgR = Double(nsColor.redComponent)
-            bgG = Double(nsColor.greenComponent)
-            bgB = Double(nsColor.blueComponent)
+        // 1. Extract dominant colors (>5% area)
+        let dominantColors = ColorExtractor.extractDominantColors(from: image, threshold: 0.05)
+        
+        // 2. Randomly select one as background
+        guard let bgCGColor = dominantColors.randomElement() else { return }
+        
+        // 3. Generate high contrast text color
+        let textCGColor = ColorExtractor.complementaryTextColor(for: bgCGColor)
+        
+        // 4. Update UI state
+        if let bgNSColor = NSColor(cgColor: bgCGColor)?.usingColorSpace(.sRGB),
+           let textNSColor = NSColor(cgColor: textCGColor)?.usingColorSpace(.sRGB) {
+            bgR = Double(bgNSColor.redComponent)
+            bgG = Double(bgNSColor.greenComponent)
+            bgB = Double(bgNSColor.blueComponent)
+            
+            textR = Double(textNSColor.redComponent)
+            textG = Double(textNSColor.greenComponent)
+            textB = Double(textNSColor.blueComponent)
+            
+            // Automatically turn on custom colors
+            useCustomColors = true
         }
-        textR = 1.0
-        textG = 1.0
-        textB = 1.0
     }
     
     

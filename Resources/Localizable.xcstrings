@@ -1,0 +1,503 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "" : {
+
+    },
+    "#" : {
+
+    },
+    "%@ • %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ • %2$@"
+          }
+        }
+      }
+    },
+    "%@ • %@ • %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ • %2$@ • %3$@"
+          }
+        }
+      }
+    },
+    "01 02 03" : {
+
+    },
+    "1. 2. 3." : {
+
+    },
+    "4K (3840x2160)" : {
+
+    },
+    "30 fps" : {
+
+    },
+    "60 fps" : {
+
+    },
+    "480p (854x480)" : {
+
+    },
+    "1080p (1920x1080)" : {
+
+    },
+    "Album Artist" : {
+
+    },
+    "Album Information" : {
+
+    },
+    "Album Language (CJK Variant)" : {
+
+    },
+    "Album Title" : {
+
+    },
+    "Appearance" : {
+
+    },
+    "Artist" : {
+
+    },
+    "Artist/Date may be truncated" : {
+
+    },
+    "Auto (System Default)" : {
+
+    },
+    "Auto Fit" : {
+
+    },
+    "Background Color" : {
+
+    },
+    "Bottom" : {
+
+    },
+    "Cancel" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Annuler"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キャンセル"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
+        }
+      }
+    },
+    "Center" : {
+
+    },
+    "Centered Top" : {
+
+    },
+    "Choose Font..." : {
+
+    },
+    "Colors" : {
+
+    },
+    "Compilation Album (Show Track Artists)" : {
+
+    },
+    "Compilation Album (Various Artists)" : {
+
+    },
+    "Cover Left" : {
+
+    },
+    "Cover Position:" : {
+
+    },
+    "Cover Right" : {
+
+    },
+    "Cover Scale" : {
+
+    },
+    "Custom Render Options" : {
+
+    },
+    "Custom Render..." : {
+
+    },
+    "Custom..." : {
+
+    },
+    "Drag and drop an audio folder here, or click to browse." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Faites glisser un dossier audio ici ou cliquez pour parcourir."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オーディオフォルダをここにドラッグ＆ドロップするか、クリックして参照します。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "将音频文件夹拖拽到此处，或点击浏览。"
+          }
+        }
+      }
+    },
+    "Drag to reorder" : {
+
+    },
+    "Dramatically speeds up rendering on Apple Silicon/Intel. Disable only if you experience glitches." : {
+
+    },
+    "Edit Album Info" : {
+
+    },
+    "Edit Info" : {
+
+    },
+    "Edit Metadata" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modifier les métadonnées"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メタデータを編集"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编辑元数据"
+          }
+        }
+      }
+    },
+    "Export" : {
+
+    },
+    "Export Settings" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paramètres d'exportation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き出し設定"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出设置"
+          }
+        }
+      }
+    },
+    "Export Wizard" : {
+
+    },
+    "Extract Recommended Colors from Cover" : {
+
+    },
+    "Factory Reset" : {
+
+    },
+    "Font Family:" : {
+
+    },
+    "Framerate:" : {
+
+    },
+    "Genre" : {
+
+    },
+    "Hardware Acceleration (VideoToolbox)" : {
+
+    },
+    "Helvetica" : {
+
+    },
+    "I II III" : {
+
+    },
+    "Japanese" : {
+
+    },
+    "Korean" : {
+
+    },
+    "Layout & Alignment" : {
+
+    },
+    "Lexend" : {
+
+    },
+    "Live Preview" : {
+
+    },
+    "Metadata Order:" : {
+
+    },
+    "MP4 (.mp4)" : {
+
+    },
+    "Multi-CD Album (Scan Subfolders)" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Album multi-CD (Analyser les sous-dossiers)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "マルチCDアルバム（サブフォルダをスキャン）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多盘片专辑 (扫描子文件夹)"
+          }
+        }
+      }
+    },
+    "Next..." : {
+
+    },
+    "No Album Loaded" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun album chargé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アルバムが読み込まれていません"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未加载专辑"
+          }
+        }
+      }
+    },
+    "No Cover" : {
+
+    },
+    "None" : {
+
+    },
+    "Output Format:" : {
+
+    },
+    "Override Auto Colors" : {
+
+    },
+    "Override iTunes Search..." : {
+
+    },
+    "Performance" : {
+
+    },
+    "PingFang SC" : {
+
+    },
+    "Presets" : {
+
+    },
+    "pt" : {
+
+    },
+    "QuickTime (.mov)" : {
+
+    },
+    "Render Settings" : {
+
+    },
+    "Resolution:" : {
+
+    },
+    "Restore Default" : {
+
+    },
+    "Save Changes" : {
+
+    },
+    "Save Current as Default" : {
+
+    },
+    "Save current layout and metadata to album folder" : {
+
+    },
+    "Save Settings" : {
+
+    },
+    "Save Video..." : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrer la vidéo..."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ビデオを保存..."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存视频..."
+          }
+        }
+      }
+    },
+    "Scan Optical Drive" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Analyser le lecteur optique"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "光学ドライブをスキャン"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "扫描光驱"
+          }
+        }
+      }
+    },
+    "Select Cover..." : {
+
+    },
+    "Select Folder" : {
+      "localizations" : {
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sélectionner un dossier"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダを選択"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择文件夹"
+          }
+        }
+      }
+    },
+    "Simplified Chinese" : {
+
+    },
+    "Some tracks may be truncated" : {
+
+    },
+    "Split (Title Top, Tracks Bottom)" : {
+
+    },
+    "System (San Francisco)" : {
+
+    },
+    "Text Color" : {
+
+    },
+    "Text Vertical Alignment:" : {
+
+    },
+    "Title" : {
+
+    },
+    "Title may be truncated" : {
+
+    },
+    "Title/Artist on Bottom" : {
+
+    },
+    "Title/Artist on Top" : {
+
+    },
+    "Top" : {
+
+    },
+    "Toppan Bunkyu Gothic" : {
+
+    },
+    "Track Artist (Optional)" : {
+
+    },
+    "Track Numbers:" : {
+
+    },
+    "Track Title" : {
+
+    },
+    "Traditional Chinese" : {
+
+    },
+    "Typography" : {
+
+    },
+    "Video Profile" : {
+
+    },
+    "Video Settings" : {
+
+    },
+    "Year" : {
+
+    }
+  },
+  "version" : "1.0"
+}

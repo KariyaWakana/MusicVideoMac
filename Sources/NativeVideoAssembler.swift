@@ -127,6 +127,9 @@ class NativeVideoAssembler {
             if !isLastTrack && crossfadeFrames > 0 {
                 let nextIndex = index + 1
                 for f in 0..<crossfadeFrames {
+                    // Yield to the main runloop and allow autorelease pools to drain, preventing memory bloat
+                    await Task.yield()
+                    
                     // Temporal Anti-Aliasing (Motion Blur): Render 2 subframes at 120fps and blend to 60fps
                     let t1 = (Double(f) + 0.0) / Double(crossfadeFrames)
                     let t2 = (Double(f) + 0.5) / Double(crossfadeFrames)

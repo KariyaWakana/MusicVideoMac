@@ -1,17 +1,26 @@
 name: MusicVideoMacApp
 options:
   bundleIdPrefix: com.musicvideo
+  developmentLanguage: en
+  localizations:
+    - en
+    - zh-Hans
+    - ja
+    - fr
 targets:
   MusicVideoMacApp:
     type: application
     platform: macOS
     deploymentTarget: "14.0"
-    sources: [Sources]
+    sources:
+      - path: Sources
+      - path: Resources
     info:
-      path: Info.plist
+      path: Resources/Info.plist
       properties:
         CFBundleName: "MusicVideo"
         CFBundleDisplayName: "Music Video Generator"
+        CFBundleIconFile: "MusicVideo"
         NSPrincipalClass: NSApplication
         NSRemovableVolumesUsageDescription: "需要读取外置光驱中的音乐"
         NSDesktopFolderUsageDescription: "需要保存视频到桌面"
@@ -26,5 +35,6 @@ targets:
       base:
         ENABLE_PREVIEWS: YES
         SWIFT_VERSION: 5.0
+        SWIFT_EMIT_LOC_STRINGS: YES
         CODE_SIGN_IDENTITY: "-"
         DEVELOPMENT_TEAM: ""

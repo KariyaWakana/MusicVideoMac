@@ -129,16 +129,27 @@ struct FrameView: View {
     private func formattedTitle(for track: Track, index: Int) -> String {
         let baseTitle = track.title
         let trackIndex = index + 1
+        var safeTitle = ""
         switch trackNumberStyle {
-        case 1:
-            return String(format: "%02d %@", trackIndex, baseTitle)
-        case 2:
-            return "\(trackIndex). \(baseTitle)"
-        case 3:
-            return "\(intToRoman(trackIndex)) \(baseTitle)"
-        default:
-            return baseTitle
+        case 1: safeTitle = String(format: "%02d. %@", trackIndex, baseTitle)
+        case 2: safeTitle = "\(trackIndex). \(baseTitle)"
+        case 3: safeTitle = "\(intToRoman(trackIndex)) \(baseTitle)"
+        default: safeTitle = baseTitle
         }
+        
+        let maxLength = 80
+        if safeTitle.count > maxLength {
+            return String(safeTitle.prefix(maxLength)) + "..."
+        }
+        return safeTitle
+    }
+    
+    private func formattedArtistSuffix(for track: Track) -> String {
+        let shouldShowArtist = (isCompilation && track.artist != nil) || (!isCompilation && track.artist != nil && !(track.artist?.isEmpty ?? true) && track.artist != meta.artist)
+        if shouldShowArtist, let artistStr = track.artist {
+            return " - " + artistStr
+        }
+        return ""
     }
     
     private func effectiveFontFamilyName() -> String {
@@ -318,9 +329,7 @@ struct FrameView: View {
                         let style = trackStyle(for: i)
                         // Reverse engineer the transition progress from weight (since we need 0.0-1.0 for KeynoteTransitionText)
                         let rawProgress = (style.weight - 400.0) / 300.0
-                        
-                        let shouldShowArtist = (isCompilation && track.artist != nil) || (!isCompilation && track.artist != nil && !track.artist!.isEmpty && track.artist != meta.artist)
-                        let artistSuffix = shouldShowArtist ? " - \(track.artist!)" : ""
+                        let artistSuffix = formattedArtistSuffix(for: track)
                         
                         HStack(alignment: .firstTextBaseline, spacing: 0) {
                             KeynoteTransitionText(
@@ -359,9 +368,7 @@ struct FrameView: View {
                             let displayTitle = formattedTitle(for: track, index: i)
                             let style = trackStyle(for: i)
                             let rawProgress = (style.weight - 400.0) / 300.0
-                            
-                            let shouldShowArtist = (isCompilation && track.artist != nil) || (!isCompilation && track.artist != nil && !track.artist!.isEmpty && track.artist != meta.artist)
-                            let artistSuffix = shouldShowArtist ? " - \(track.artist!)" : ""
+                            let artistSuffix = formattedArtistSuffix(for: track)
                             
                             HStack(alignment: .firstTextBaseline, spacing: 0) {
                                 KeynoteTransitionText(

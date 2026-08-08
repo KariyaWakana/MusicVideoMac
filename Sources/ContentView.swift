@@ -153,6 +153,16 @@ struct ContentView: View {
                                     Text(track.title)
                                         .font(.system(size: 14))
                                 }
+                                .width(min: 100, ideal: 200)
+                                
+                                TableColumn("Artist") { track in
+                                    if let artist = track.artist, !artist.isEmpty, artist != viewModel.meta.artist {
+                                        Text(artist)
+                                            .font(.system(size: 13))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .width(min: 80, ideal: 150)
                             }
                             .frame(minHeight: 400)
                             .padding(.horizontal, 40)

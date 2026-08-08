@@ -27,6 +27,169 @@ class AppViewModel {
         get { UserDefaults.standard.string(forKey: "outputFormat") ?? "mp4" }
     }
     
+    // MARK: - Text Overflow Calculation & Auto-Fit
+    
+    // The UI font sizes are relative to a normalized 1920x1080 coordinate system.
+    // Therefore, the overflow calculation must always use 1920.0 as the base width,
+    // regardless of the final export resolution (4K, 480p), because the font sizes
+    // scale proportionally with the resolution during rendering.
+    func availableTextWidth(layoutMode: String, coverScale: Double) -> CGFloat {
+        let width: CGFloat = 1920.0
+        if layoutMode == "Center" {
+            return width - 120 // 60 padding on each side
+        } else {
+            // 100 horizontal padding * 2 = 200
+            // spacing = 80
+            // cover width = 800 * coverScale
+            return width - 280.0 - CGFloat(800.0 * coverScale)
+        }
+    }
+    
+    func textWidth(for string: String, fontName: String, fontSize: CGFloat, weight: NSFont.Weight = .regular) -> CGFloat {
+        let actualFontName = fontName == "Custom" ? (UserDefaults.standard.string(forKey: "customFontName") ?? "System") : fontName
+        var nsFont: NSFont
+        if actualFontName == "System" || actualFontName.isEmpty {
+            nsFont = NSFont.systemFont(ofSize: fontSize, weight: weight)
+        } else {
+            nsFont = NSFont(name: actualFontName, size: fontSize) ?? NSFont.systemFont(ofSize: fontSize, weight: weight)
+        }
+        let attrString = NSAttributedString(string: string, attributes: [.font: nsFont])
+        return attrString.size().width
+    }
+    
+    func availableTextHeight(layoutMode: String, coverScale: Double) -> CGFloat {
+        let height: CGFloat = 1080.0
+        if layoutMode == "Center" {
+            // VStack spacing is 60. Cover takes 600 * coverScale.
+            return height - 120.0 - 60.0 - CGFloat(600.0 * coverScale)
+        } else {
+            // Left/Right has 80 vertical padding on top and bottom (160 total)
+            return height - 160.0
+        }
+    }
+    
+    struct LayoutSimulationResult {
+        var titleOverflow: Bool
+        var subtitleOverflow: Bool
+        var trackOverflow: Bool
+    }
+    
+    func simulateLayout(titleSize: Double, subtitleSize: Double, trackSize: Double, fontFamily: String, layoutMode: String, trackNumberStyle: Int, isCompilation: Bool, coverScale: Double) -> LayoutSimulationResult {
+        let availW = availableTextWidth(layoutMode: layoutMode, coverScale: coverScale)
+        let availH = availableTextHeight(layoutMode: layoutMode, coverScale: coverScale)
+        
+        var tOverflow = false
+        var sOverflow = false
+        var trOverflow = false
+        
+        // 1. Simulate Title
+        let titleText = meta.title
+        var titleH: CGFloat = 0
+        if !titleText.isEmpty {
+            let w = textWidth(for: titleText, fontName: fontFamily, fontSize: CGFloat(titleSize), weight: .bold)
+            let lines = w > availW ? 2 : 1
+            if w > availW * 2 { tOverflow = true } // Even 2 lines overflow horizontally
+            titleH = CGFloat(lines) * CGFloat(titleSize) * 1.2
+        }
+        
+        // 2. Simulate Subtitle
+        let subtitleText = "\(meta.artist) \(meta.year)"
+        var subtitleH: CGFloat = 0
+        if !subtitleText.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines).isEmpty {
+            let w = textWidth(for: subtitleText, fontName: fontFamily, fontSize: CGFloat(subtitleSize), weight: .medium)
+            if w > availW { sOverflow = true }
+            subtitleH = CGFloat(subtitleSize) * 1.2
+        }
+        
+        // 3. Simulate Tracks
+        var trackH: CGFloat = 0
+        if !meta.tracks.isEmpty {
+            let maxTracks = layoutMode == "Center" ? 8 : 12
+            let trackCount = min(meta.tracks.count, maxTracks)
+            
+            for i in 0..<trackCount {
+                let track = meta.tracks[i]
+                var prefix = track.title
+                if trackNumberStyle > 0 { prefix = "00. " + prefix }
+                
+                let w1 = textWidth(for: prefix, fontName: fontFamily, fontSize: CGFloat(trackSize * 1.2), weight: .bold)
+                var w2: CGFloat = 0
+                
+                if isCompilation, let artist = track.artist {
+                    w2 = textWidth(for: " - " + artist, fontName: fontFamily, fontSize: CGFloat(trackSize * 0.8), weight: .regular)
+                } else if !isCompilation, let artist = track.artist, !artist.isEmpty, artist != meta.artist {
+                    w2 = textWidth(for: " - " + artist, fontName: fontFamily, fontSize: CGFloat(trackSize * 0.8), weight: .regular)
+                }
+                
+                if (w1 + w2) > availW { trOverflow = true }
+            }
+            trackH = CGFloat(trackCount) * CGFloat(trackSize * 1.2) * 1.2 + CGFloat(max(0, trackCount - 1)) * 15.0
+        }
+        
+        // 4. Simulate Vertical Height
+        var totalH: CGFloat = 0
+        if titleH > 0 { totalH += titleH }
+        if subtitleH > 0 {
+            if titleH > 0 { totalH += 10 }
+            totalH += subtitleH
+        }
+        if trackH > 0 {
+            if titleH > 0 || subtitleH > 0 { totalH += 30 }
+            totalH += trackH
+        }
+        
+        if totalH > availH {
+            // Vertical Overflow! Blame active components.
+            if titleH > 0 { tOverflow = true }
+            if subtitleH > 0 { sOverflow = true }
+            if trackH > 0 { trOverflow = true }
+        }
+        
+        return LayoutSimulationResult(titleOverflow: tOverflow, subtitleOverflow: sOverflow, trackOverflow: trOverflow)
+    }
+    
+    func isTitleOverflowing(titleFontSize: Double, subtitleFontSize: Double, trackFontSize: Double, fontFamily: String, layoutMode: String, trackNumberStyle: Int, isCompilation: Bool, coverScale: Double) -> Bool {
+        return simulateLayout(titleSize: titleFontSize, subtitleSize: subtitleFontSize, trackSize: trackFontSize, fontFamily: fontFamily, layoutMode: layoutMode, trackNumberStyle: trackNumberStyle, isCompilation: isCompilation, coverScale: coverScale).titleOverflow
+    }
+    
+    func isSubtitleOverflowing(titleFontSize: Double, subtitleFontSize: Double, trackFontSize: Double, fontFamily: String, layoutMode: String, trackNumberStyle: Int, isCompilation: Bool, coverScale: Double) -> Bool {
+        return simulateLayout(titleSize: titleFontSize, subtitleSize: subtitleFontSize, trackSize: trackFontSize, fontFamily: fontFamily, layoutMode: layoutMode, trackNumberStyle: trackNumberStyle, isCompilation: isCompilation, coverScale: coverScale).subtitleOverflow
+    }
+    
+    func isTrackOverflowing(titleFontSize: Double, subtitleFontSize: Double, trackFontSize: Double, fontFamily: String, layoutMode: String, trackNumberStyle: Int, isCompilation: Bool, coverScale: Double) -> Bool {
+        return simulateLayout(titleSize: titleFontSize, subtitleSize: subtitleFontSize, trackSize: trackFontSize, fontFamily: fontFamily, layoutMode: layoutMode, trackNumberStyle: trackNumberStyle, isCompilation: isCompilation, coverScale: coverScale).trackOverflow
+    }
+    
+    func autoFitTitle(currentSize: Double, subtitleFontSize: Double, trackFontSize: Double, fontFamily: String, layoutMode: String, trackNumberStyle: Int, isCompilation: Bool, coverScale: Double) -> Double {
+        var size = currentSize
+        while size > 10 {
+            let sim = simulateLayout(titleSize: size, subtitleSize: subtitleFontSize, trackSize: trackFontSize, fontFamily: fontFamily, layoutMode: layoutMode, trackNumberStyle: trackNumberStyle, isCompilation: isCompilation, coverScale: coverScale)
+            if !sim.titleOverflow { return size }
+            size -= 2
+        }
+        return size
+    }
+    
+    func autoFitSubtitle(currentSize: Double, titleFontSize: Double, trackFontSize: Double, fontFamily: String, layoutMode: String, trackNumberStyle: Int, isCompilation: Bool, coverScale: Double) -> Double {
+        var size = currentSize
+        while size > 10 {
+            let sim = simulateLayout(titleSize: titleFontSize, subtitleSize: size, trackSize: trackFontSize, fontFamily: fontFamily, layoutMode: layoutMode, trackNumberStyle: trackNumberStyle, isCompilation: isCompilation, coverScale: coverScale)
+            if !sim.subtitleOverflow { return size }
+            size -= 2
+        }
+        return size
+    }
+    
+    func autoFitTracks(currentSize: Double, titleFontSize: Double, subtitleFontSize: Double, fontFamily: String, layoutMode: String, trackNumberStyle: Int, isCompilation: Bool, coverScale: Double) -> Double {
+        var size = currentSize
+        while size > 10 {
+            let sim = simulateLayout(titleSize: titleFontSize, subtitleSize: subtitleFontSize, trackSize: size, fontFamily: fontFamily, layoutMode: layoutMode, trackNumberStyle: trackNumberStyle, isCompilation: isCompilation, coverScale: coverScale)
+            if !sim.trackOverflow { return size }
+            size -= 2
+        }
+        return size
+    }
+    
     func resetAll() {
         meta = AlbumMetadata()
         coverImage = nil
