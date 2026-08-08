@@ -23,14 +23,12 @@
 		B012FB97ACC51D63BCB3D031 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C495CCAC9BD8BAB2886350E /* ContentView.swift */; };
 		B0413663BD51B476829EE642 /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 677B2EF0178A10E23C3B7413 /* AppViewModel.swift */; };
 		BD50AF8B2494E16CF5ECA0CD /* NumericSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B74F5921875FBD256D059B3B /* NumericSlider.swift */; };
-		C6D3D39DA271C7041520AA0B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1683859CD5B3FE9C2AD44AF3 /* Assets.xcassets */; };
 		CDD15EF6160A2E45045A1705 /* MusicVideo.icon in Resources */ = {isa = PBXBuildFile; fileRef = FFD0CC6E324A2E6A912F0467 /* MusicVideo.icon */; };
 		E107F15D8ACC546248563AE3 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1D29F5D9E6F9F3D44AF46D7 /* Models.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		1360D63A0C8E26D2D0732942 /* AudioScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioScanner.swift; sourceTree = "<group>"; };
-		1683859CD5B3FE9C2AD44AF3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		28C020F938194C673E7148F7 /* AudioTagReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTagReader.swift; sourceTree = "<group>"; };
 		4C495CCAC9BD8BAB2886350E /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		5B0B91FA0A7871D76AFC7BE2 /* NativeVideoAssembler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeVideoAssembler.swift; sourceTree = "<group>"; };
@@ -122,7 +120,6 @@
 		81A9727CDECC0EF3E5EC7CE4 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				1683859CD5B3FE9C2AD44AF3 /* Assets.xcassets */,
 				D09A021F5342FA26BB4F49EB /* Info.plist */,
 				ED01013B7F13A3A57445B6C0 /* Localizable.xcstrings */,
 				FFD0CC6E324A2E6A912F0467 /* MusicVideo.icon */,
@@ -246,7 +243,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C6D3D39DA271C7041520AA0B /* Assets.xcassets in Resources */,
 				91EA7680CA0A78F931D1D040 /* Localizable.xcstrings in Resources */,
 				CDD15EF6160A2E45045A1705 /* MusicVideo.icon in Resources */,
 			);
@@ -284,10 +280,11 @@
 		21753BEB11958B908ED83A5E /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = MusicVideo;
 				CODE_SIGN_ENTITLEMENTS = MusicVideoMacApp.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -296,6 +293,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.musicvideo.MusicVideoMacApp;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -306,10 +304,11 @@
 		31BFD9A98C812B15B910F14E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = MusicVideo;
 				CODE_SIGN_ENTITLEMENTS = MusicVideoMacApp.entitlements;
 				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -318,6 +317,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.musicvideo.MusicVideoMacApp;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
