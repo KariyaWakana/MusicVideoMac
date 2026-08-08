@@ -1,0 +1,30 @@
+name: MusicVideoMacApp
+options:
+  bundleIdPrefix: com.musicvideo
+targets:
+  MusicVideoMacApp:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources: [Sources]
+    info:
+      path: Info.plist
+      properties:
+        CFBundleName: "MusicVideo"
+        CFBundleDisplayName: "Music Video Generator"
+        NSPrincipalClass: NSApplication
+        NSRemovableVolumesUsageDescription: "需要读取外置光驱中的音乐"
+        NSDesktopFolderUsageDescription: "需要保存视频到桌面"
+        LSMinimumSystemVersion: "14.0"
+    entitlements:
+      path: MusicVideoMacApp.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-write: true
+        com.apple.security.network.client: true
+    settings:
+      base:
+        ENABLE_PREVIEWS: YES
+        SWIFT_VERSION: 5.0
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
