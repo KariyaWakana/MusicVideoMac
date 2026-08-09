@@ -10,6 +10,7 @@ struct NumericSlider: View {
     var defaultValue: Double
     var viewModel: AppViewModel
     
+    @Environment(\.undoManager) var undoManager
     @State private var initialValue: Double?
     
     var body: some View {
@@ -22,7 +23,7 @@ struct NumericSlider: View {
                     initialValue = value
                 } else {
                     if let old = initialValue, old != value {
-                        viewModel.registerSliderUndo(key: appStorageKey, oldValue: old, newValue: value)
+                        viewModel.registerSliderUndo(undoManager: undoManager, key: appStorageKey, oldValue: old, newValue: value)
                     }
                 }
             }
@@ -40,7 +41,7 @@ struct NumericSlider: View {
             let old = value
             if old != defaultValue {
                 value = defaultValue
-                viewModel.registerSliderUndo(key: appStorageKey, oldValue: old, newValue: defaultValue)
+                viewModel.registerSliderUndo(undoManager: undoManager, key: appStorageKey, oldValue: old, newValue: defaultValue)
             }
         }
     }

@@ -2,16 +2,12 @@ import SwiftUI
 
 @main
 struct MusicVideoMacApp: App {
-    @Environment(\.undoManager) var undoManager
     @State private var viewModel = AppViewModel()
     
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .environment(viewModel)
-                .onAppear {
-                    viewModel.undoManager = undoManager
-                }
         }
         .windowStyle(.hiddenTitleBar)
         
