@@ -478,11 +478,22 @@ class AppViewModel {
     // MARK: - UndoManager Support
     
     func registerSliderUndo(undoManager: UndoManager?, key: String, oldValue: Double, newValue: Double) {
+        registerAppStorageUndo(undoManager: undoManager, key: key, oldValue: oldValue, newValue: newValue)
+    }
+    
+    func registerAppStorageUndo<T>(undoManager: UndoManager?, key: String, oldValue: T, newValue: T) {
         guard let undoManager = undoManager else { return }
         undoManager.registerUndo(withTarget: self) { target in
             UserDefaults.standard.set(oldValue, forKey: key)
-            // Re-register for Redo
-            target.registerSliderUndo(undoManager: undoManager, key: key, oldValue: newValue, newValue: oldValue)
+            target.registerAppStorageUndo(undoManager: undoManager, key: key, oldValue: newValue, newValue: oldValue)
+        }
+    }
+    
+    func registerPropertyUndo<T>(undoManager: UndoManager?, keyPath: ReferenceWritableKeyPath<AppViewModel, T>, oldValue: T, newValue: T) {
+        guard let undoManager = undoManager else { return }
+        undoManager.registerUndo(withTarget: self) { target in
+            target[keyPath: keyPath] = oldValue
+            target.registerPropertyUndo(undoManager: undoManager, keyPath: keyPath, oldValue: newValue, newValue: oldValue)
         }
     }
 }

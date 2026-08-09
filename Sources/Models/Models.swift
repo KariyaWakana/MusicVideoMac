@@ -1,7 +1,7 @@
 import Foundation
 import AppKit
 
-struct Track: Identifiable {
+struct Track: Identifiable, Equatable {
     let id = UUID()
     var title: String
     var artist: String?
@@ -10,7 +10,7 @@ struct Track: Identifiable {
     var artwork: NSImage? = nil
 }
 
-struct AlbumMetadata {
+struct AlbumMetadata: Equatable {
     var title: String = "Unknown Album"
     var artist: String = "Unknown Artist"
     var year: String = "Unknown Year"

@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 struct MetadataEditorView: View {
     @Bindable var viewModel: AppViewModel
+    @Environment(\.undoManager) var undoManager
     @Environment(\.dismiss) var dismiss
     @AppStorage("isCompilation") private var isCompilation: Bool = false
     
@@ -121,6 +122,16 @@ struct MetadataEditorView: View {
             }
         }
         .frame(width: 600, height: 620) // Slightly wider to accommodate the image
+        .onChange(of: viewModel.meta) { oldMeta, newMeta in
+            if oldMeta != newMeta {
+                viewModel.registerPropertyUndo(undoManager: undoManager, keyPath: \.meta, oldValue: oldMeta, newValue: newMeta)
+            }
+        }
+        .onChange(of: isCompilation) { oldVal, newVal in
+            if oldVal != newVal {
+                viewModel.registerAppStorageUndo(undoManager: undoManager, key: "isCompilation", oldValue: oldVal, newValue: newVal)
+            }
+        }
     }
     
     private func selectCoverImage() {
@@ -133,7 +144,9 @@ struct MetadataEditorView: View {
         panel.begin { response in
             if response == .OK, let url = panel.url {
                 if let image = NSImage(contentsOf: url) {
+                    let oldImage = viewModel.coverImage
                     viewModel.coverImage = image
+                    viewModel.registerPropertyUndo(undoManager: undoManager, keyPath: \.coverImage, oldValue: oldImage, newValue: image)
                 }
             }
         }
