@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 @MainActor
 @Observable
 class AppViewModel {
+    var undoManager: UndoManager? = nil
     var meta = AlbumMetadata()
     var coverImage: NSImage? = nil
     var searchTerm: String = ""
@@ -472,6 +473,17 @@ class AppViewModel {
             print("Successfully saved settings to \(settingsURL)")
         } catch {
             print("Failed to save album settings: \(error)")
+        }
+    }
+    
+    // MARK: - UndoManager Support
+    
+    func registerSliderUndo(key: String, oldValue: Double, newValue: Double) {
+        guard let undoManager = self.undoManager else { return }
+        undoManager.registerUndo(withTarget: self) { target in
+            UserDefaults.standard.set(oldValue, forKey: key)
+            // Re-register for Redo
+            target.registerSliderUndo(key: key, oldValue: newValue, newValue: oldValue)
         }
     }
 }

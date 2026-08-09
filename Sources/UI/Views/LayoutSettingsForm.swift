@@ -88,7 +88,7 @@ struct LayoutSettingsForm: View {
                 
                 VStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 4) {
-                        NumericSlider(title: "Title Size", systemImage: "textformat.size.larger", value: $titleFontSize, range: 20...120)
+                        NumericSlider(title: "Title Size", systemImage: "textformat.size.larger", value: $titleFontSize, range: 20...120, appStorageKey: "titleFontSize", defaultValue: 64.0, viewModel: viewModel)
                         if viewModel.isTitleOverflowing(titleFontSize: titleFontSize, subtitleFontSize: subtitleFontSize, trackFontSize: trackFontSize, fontFamily: fontFamily, layoutMode: layoutMode, trackNumberStyle: trackNumberStyle, isCompilation: isCompilation, coverScale: coverScale) {
                             HStack(spacing: 4) {
                                 Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.yellow)
@@ -102,7 +102,7 @@ struct LayoutSettingsForm: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 4) {
-                        NumericSlider(title: "Artist Size", systemImage: "textformat.size", value: $subtitleFontSize, range: 20...80)
+                        NumericSlider(title: "Artist Size", systemImage: "textformat.size", value: $subtitleFontSize, range: 20...80, appStorageKey: "subtitleFontSize", defaultValue: 20.0, viewModel: viewModel)
                         if viewModel.isSubtitleOverflowing(titleFontSize: titleFontSize, subtitleFontSize: subtitleFontSize, trackFontSize: trackFontSize, fontFamily: fontFamily, layoutMode: layoutMode, trackNumberStyle: trackNumberStyle, isCompilation: isCompilation, coverScale: coverScale) {
                             HStack(spacing: 4) {
                                 Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.yellow)
@@ -116,7 +116,7 @@ struct LayoutSettingsForm: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 4) {
-                        NumericSlider(title: "Track Size", systemImage: "textformat.size.smaller", value: $trackFontSize, range: 15...60)
+                        NumericSlider(title: "Track Size", systemImage: "textformat.size.smaller", value: $trackFontSize, range: 15...60, appStorageKey: "trackFontSize", defaultValue: 32.0, viewModel: viewModel)
                         if viewModel.isTrackOverflowing(titleFontSize: titleFontSize, subtitleFontSize: subtitleFontSize, trackFontSize: trackFontSize, fontFamily: fontFamily, layoutMode: layoutMode, trackNumberStyle: trackNumberStyle, isCompilation: isCompilation, coverScale: coverScale) {
                             HStack(spacing: 4) {
                                 Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.yellow)

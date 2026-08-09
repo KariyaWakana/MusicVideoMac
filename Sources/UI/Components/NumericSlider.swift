@@ -6,12 +6,26 @@ struct NumericSlider: View {
     @Binding var value: Double
     var range: ClosedRange<Double>
     
+    var appStorageKey: String
+    var defaultValue: Double
+    var viewModel: AppViewModel
+    
+    @State private var initialValue: Double?
+    
     var body: some View {
         HStack(spacing: 12) {
             Label(title, systemImage: systemImage)
                 .frame(width: 100, alignment: .leading)
             
-            Slider(value: $value, in: range)
+            Slider(value: $value, in: range) { editing in
+                if editing {
+                    initialValue = value
+                } else {
+                    if let old = initialValue, old != value {
+                        viewModel.registerSliderUndo(key: appStorageKey, oldValue: old, newValue: value)
+                    }
+                }
+            }
             
             TextField("", value: $value, format: .number)
                 .textFieldStyle(.roundedBorder)
@@ -20,6 +34,14 @@ struct NumericSlider: View {
                 .disableAutocorrection(true)
             
             Text("pt").foregroundColor(.secondary)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            let old = value
+            if old != defaultValue {
+                value = defaultValue
+                viewModel.registerSliderUndo(key: appStorageKey, oldValue: old, newValue: defaultValue)
+            }
         }
     }
 }

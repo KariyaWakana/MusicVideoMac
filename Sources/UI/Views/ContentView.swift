@@ -174,6 +174,19 @@ struct ContentView: View {
             .navigationTitle(viewModel.meta.tracks.isEmpty ? "Music Video Generator" : viewModel.meta.title)
             .searchable(text: Bindable(viewModel).searchTerm, prompt: "Override iTunes Search...")
             .autocorrectionDisabled(true)
+            .toolbar {
+                ToolbarItem(placement: .automatic) {
+                    Button(action: {
+                        viewModel.saveAlbumSettings()
+                        viewModel.statusMessage = "Settings saved to album folder."
+                    }) {
+                        Label("Save Settings", systemImage: "square.and.arrow.down")
+                    }
+                    .help("Save current layout and metadata to album folder")
+                    .keyboardShortcut("s", modifiers: .command)
+                    .disabled(viewModel.meta.tracks.isEmpty)
+                }
+            }
         }
         .onDrop(of: [.fileURL], isTargeted: Bindable(viewModel).isHovering) { providers in
             viewModel.handleDrop(providers: providers)
