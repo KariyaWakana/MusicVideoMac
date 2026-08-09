@@ -231,22 +231,45 @@ struct FrameView: View {
             effectiveBgColor.edgesIgnoringSafeArea(.all)
             
             if layoutMode == "Center" {
-                VStack(spacing: 60 * scale) {
-                    if verticalAlignment == "Bottom" || verticalAlignment == "Center" { Spacer() }
+                HStack(alignment: .center, spacing: 40 * scale) {
                     
-                    if let cover = coverImage {
-                        Image(nsImage: cover)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 600 * scale * coverScale, height: 600 * scale * coverScale)
-                            .shadow(color: .black.opacity(0.6), radius: 15 * scale, x: 0, y: 15 * scale)
+                    // Left Tracks (roughly 1/3 width)
+                    trackListBlock(startIndex: 0, endIndex: -1, isCenter: true, forceLeft: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    
+                    // Center Cover + Meta (roughly 1/3 width)
+                    VStack(spacing: 40 * scale) {
+                        if metadataPosition == "Top" {
+                            metadataBlock
+                            Spacer()
+                        }
+                        
+                        if let cover = coverImage {
+                            Image(nsImage: cover)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .frame(width: 600 * scale * coverScale, height: 600 * scale * coverScale)
+                                .shadow(color: .black.opacity(0.6), radius: 15 * scale, x: 0, y: 15 * scale)
+                        } else {
+                            Rectangle()
+                                .fill(Color.gray)
+                                .frame(width: 600 * scale * coverScale, height: 600 * scale * coverScale)
+                                .shadow(color: .black.opacity(0.6), radius: 15 * scale, x: 0, y: 15 * scale)
+                        }
+                        
+                        if metadataPosition != "Top" {
+                            Spacer()
+                            metadataBlock
+                        }
                     }
+                    .frame(width: 600 * scale * max(1.0, coverScale)) // stable center width based on cover size
                     
-                    textContent
-                    
-                    if verticalAlignment == "Top" || verticalAlignment == "Center" { Spacer() }
+                    // Right Tracks (roughly 1/3 width)
+                    trackListBlock(startIndex: 0, endIndex: -1, isCenter: true, forceRight: true)
+                        .frame(maxWidth: .infinity, alignment: .leading) // User requested left-aligned text for right tracks too
                 }
-                .padding(60 * scale)
+                .padding(.horizontal, 60 * scale)
+                .padding(.vertical, 60 * scale)
             } else {
                 HStack(alignment: alignment, spacing: 80 * scale) {
                     if layoutMode == "Right" {
@@ -261,6 +284,25 @@ struct FrameView: View {
                 .padding(.horizontal, 100 * scale)
                 .padding(.vertical, 80 * scale)
             }
+        }
+        .frame(maxHeight: .infinity)
+        .environment(\.locale, cjkLanguageCode != nil ? Locale(identifier: cjkLanguageCode!) : Locale.current)
+    }
+    
+    @ViewBuilder
+    var metadataBlock: some View {
+        let isCenter = layoutMode == "Center"
+        VStack(alignment: isCenter ? .center : .leading, spacing: 10 * scale) {
+            Text(meta.title)
+                .font(.custom(effectiveFontFamilyName(), size: CGFloat(titleFontSize) * scale).weight(.bold))
+                .foregroundColor(effectiveTextColor)
+                .lineLimit(2)
+                .multilineTextAlignment(isCenter ? .center : .leading)
+            
+            let displayArtist = isCompilation ? "Various Artists" : meta.artist
+            Text("\(displayArtist) • \(meta.year) • \(meta.genre)")
+                .font(.custom(effectiveFontFamilyName(), size: CGFloat(subtitleFontSize) * scale).weight(.medium))
+                .foregroundColor(effectiveTextColor.opacity(0.7))
         }
     }
     
@@ -297,87 +339,69 @@ struct FrameView: View {
     
     @ViewBuilder
     var textContent: some View {
-        let isCenter = layoutMode == "Center"
-        VStack(alignment: isCenter ? .center : .leading, spacing: 30 * scale) {
-            
-            let metadataView = VStack(alignment: isCenter ? .center : .leading, spacing: 10 * scale) {
-                Text(meta.title)
-                    .font(.custom(effectiveFontFamilyName(), size: CGFloat(titleFontSize) * scale).weight(.bold))
-                    .foregroundColor(effectiveTextColor)
-                    .lineLimit(2)
-                    .multilineTextAlignment(isCenter ? .center : .leading)
-                
-                let displayArtist = isCompilation ? "Various Artists" : meta.artist
-                Text("\(displayArtist) • \(meta.year) • \(meta.genre)")
-                    .font(.custom(effectiveFontFamilyName(), size: CGFloat(subtitleFontSize) * scale).weight(.medium))
-                    .foregroundColor(effectiveTextColor.opacity(0.7))
-            }
-            
-            let tracklistView = ZStack(alignment: isCenter ? .top : .topLeading) {
-                let maxTracks = isCenter ? 12 : 12 // 12 tracks per page (2 cols of 6 in center, or 1 col of 12 otherwise)
-                let currentPage = currentTrackIndex / maxTracks
-                let nextPage = (nextTrackIndex ?? currentTrackIndex) / maxTracks
-                
-                // Current Page
-                let start1 = currentPage * maxTracks
-                let end1 = min(start1 + maxTracks, meta.tracks.count)
-                
-                trackListBlock(startIndex: start1, endIndex: end1, isCenter: isCenter)
-                    .opacity(currentPage != nextPage ? 1.0 - transitionProgress : 1.0)
-                
-                // Next Page (crossfade)
-                if currentPage != nextPage {
-                    let start2 = nextPage * maxTracks
-                    let end2 = min(start2 + maxTracks, meta.tracks.count)
-                    
-                    trackListBlock(startIndex: start2, endIndex: end2, isCenter: isCenter)
-                        .opacity(transitionProgress)
-                }
-            }
-            
+        VStack(alignment: .leading, spacing: 30 * scale) {
             if metadataPosition == "Top" {
-                metadataView
-                tracklistView
+                metadataBlock
+                trackListBlock(startIndex: 0, endIndex: -1, isCenter: false)
             } else if metadataPosition == "Bottom" {
-                tracklistView
-                metadataView
+                trackListBlock(startIndex: 0, endIndex: -1, isCenter: false)
+                metadataBlock
             } else {
-                metadataView
+                metadataBlock
                 Spacer()
-                tracklistView
+                trackListBlock(startIndex: 0, endIndex: -1, isCenter: false)
             }
         }
-        .frame(maxHeight: .infinity)
-        .environment(\.locale, cjkLanguageCode != nil ? Locale(identifier: cjkLanguageCode!) : Locale.current)
     }
     
     @ViewBuilder
-    private func trackListBlock(startIndex: Int, endIndex: Int, isCenter: Bool) -> some View {
-        if isCenter {
-            let total = endIndex - startIndex
-            let leftCount = (total + 1) / 2
-            let leftEnd = startIndex + leftCount
+    private func trackListBlock(startIndex: Int, endIndex: Int, isCenter: Bool, forceLeft: Bool = false, forceRight: Bool = false) -> some View {
+        ZStack(alignment: .topLeading) {
+            let maxTracks = isCenter ? 24 : 12 // 24 tracks per page (12 per side) in Triptych mode
+            let currentPage = currentTrackIndex / maxTracks
+            let nextPage = (nextTrackIndex ?? currentTrackIndex) / maxTracks
             
-            HStack(alignment: .top, spacing: 80 * scale) {
-                // Left Column
+            // Current Page
+            let start1 = currentPage * maxTracks
+            let end1 = min(start1 + maxTracks, meta.tracks.count)
+            
+            renderTrackGroup(start: start1, end: end1, isCenter: isCenter, forceLeft: forceLeft, forceRight: forceRight)
+                .opacity(currentPage != nextPage ? 1.0 - transitionProgress : 1.0)
+            
+            // Next Page (crossfade)
+            if currentPage != nextPage {
+                let start2 = nextPage * maxTracks
+                let end2 = min(start2 + maxTracks, meta.tracks.count)
+                
+                renderTrackGroup(start: start2, end: end2, isCenter: isCenter, forceLeft: forceLeft, forceRight: forceRight)
+                    .opacity(transitionProgress)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func renderTrackGroup(start: Int, end: Int, isCenter: Bool, forceLeft: Bool, forceRight: Bool) -> some View {
+        if isCenter {
+            let total = end - start
+            let leftCount = (total + 1) / 2
+            let leftEnd = start + leftCount
+            
+            if forceLeft {
                 VStack(alignment: .leading, spacing: 15 * scale) {
-                    ForEach(startIndex..<leftEnd, id: \.self) { i in
+                    ForEach(start..<leftEnd, id: \.self) { i in
                         singleTrackRow(index: i, isCenter: isCenter)
                     }
                 }
-                
-                // Right Column
-                if leftEnd < endIndex {
-                    VStack(alignment: .leading, spacing: 15 * scale) {
-                        ForEach(leftEnd..<endIndex, id: \.self) { i in
-                            singleTrackRow(index: i, isCenter: isCenter)
-                        }
+            } else if forceRight {
+                VStack(alignment: .leading, spacing: 15 * scale) {
+                    ForEach(leftEnd..<end, id: \.self) { i in
+                        singleTrackRow(index: i, isCenter: isCenter)
                     }
                 }
             }
         } else {
             VStack(alignment: .leading, spacing: 15 * scale) {
-                ForEach(startIndex..<endIndex, id: \.self) { i in
+                ForEach(start..<end, id: \.self) { i in
                     singleTrackRow(index: i, isCenter: isCenter)
                 }
             }

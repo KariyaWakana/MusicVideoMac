@@ -36,7 +36,14 @@ class AppViewModel {
     func availableTextWidth(layoutMode: String, coverScale: Double) -> CGFloat {
         let width: CGFloat = 1920.0
         if layoutMode == "Center" {
-            return width - 120 // 60 padding on each side
+            // Triptych layout width math:
+            // 60 padding on each side (120)
+            // Center column is 600 * max(1, coverScale)
+            // 40 spacing * 2 = 80
+            // Total track width = 1920 - 120 - centerWidth - 80
+            let centerWidth = 600.0 * max(1.0, coverScale)
+            let totalTrackWidth = width - 200.0 - centerWidth
+            return totalTrackWidth / 2.0 // Width available for one column of tracks
         } else {
             // 100 horizontal padding * 2 = 200
             // spacing = 80
@@ -60,8 +67,8 @@ class AppViewModel {
     func availableTextHeight(layoutMode: String, coverScale: Double) -> CGFloat {
         let height: CGFloat = 1080.0
         if layoutMode == "Center" {
-            // VStack spacing is 60. Cover takes 600 * coverScale.
-            return height - 120.0 - 60.0 - CGFloat(600.0 * coverScale)
+            // Triptych layout track columns have full height except for 60 vertical padding on top and bottom (120 total)
+            return height - 120.0
         } else {
             // Left/Right has 80 vertical padding on top and bottom (160 total)
             return height - 160.0
@@ -104,8 +111,10 @@ class AppViewModel {
         // 3. Simulate Tracks
         var trackH: CGFloat = 0
         if !meta.tracks.isEmpty {
-            let maxTracks = layoutMode == "Center" ? 8 : 12
+            let maxTracks = layoutMode == "Center" ? 24 : 12
             let trackCount = min(meta.tracks.count, maxTracks)
+            let tracksPerColumn = layoutMode == "Center" ? (trackCount + 1) / 2 : trackCount
+
             
             for i in 0..<trackCount {
                 let track = meta.tracks[i]
@@ -123,26 +132,42 @@ class AppViewModel {
                 
                 if (w1 + w2) > availW { trOverflow = true }
             }
-            trackH = CGFloat(trackCount) * CGFloat(trackSize * 1.2) * 1.2 + CGFloat(max(0, trackCount - 1)) * 15.0
+            trackH = CGFloat(tracksPerColumn) * CGFloat(trackSize * 1.2) * 1.2 + CGFloat(max(0, tracksPerColumn - 1)) * 15.0
         }
         
         // 4. Simulate Vertical Height
         var totalH: CGFloat = 0
-        if titleH > 0 { totalH += titleH }
-        if subtitleH > 0 {
-            if titleH > 0 { totalH += 10 }
-            totalH += subtitleH
-        }
-        if trackH > 0 {
-            if titleH > 0 || subtitleH > 0 { totalH += 30 }
-            totalH += trackH
-        }
         
-        if totalH > availH {
-            // Vertical Overflow! Blame active components.
-            if titleH > 0 { tOverflow = true }
-            if subtitleH > 0 { sOverflow = true }
-            if trackH > 0 { trOverflow = true }
+        if layoutMode == "Center" {
+            // In Triptych mode, Title/Subtitle and Tracks are in separate columns.
+            // Text overflow only happens if tracks column overflows.
+            if trackH > availH { trOverflow = true }
+            
+            // Check if center column (Title + Cover + Subtitle) overflows
+            var centerH: CGFloat = 600.0 * coverScale
+            if titleH > 0 { centerH += titleH + 40 }
+            if subtitleH > 0 { centerH += subtitleH + (titleH > 0 ? 10 : 40) }
+            if centerH > availH {
+                if titleH > 0 { tOverflow = true }
+                if subtitleH > 0 { sOverflow = true }
+            }
+        } else {
+            if titleH > 0 { totalH += titleH }
+            if subtitleH > 0 {
+                if titleH > 0 { totalH += 10 }
+                totalH += subtitleH
+            }
+            if trackH > 0 {
+                if titleH > 0 || subtitleH > 0 { totalH += 30 }
+                totalH += trackH
+            }
+            
+            if totalH > availH {
+                // Vertical Overflow! Blame active components.
+                if titleH > 0 { tOverflow = true }
+                if subtitleH > 0 { sOverflow = true }
+                if trackH > 0 { trOverflow = true }
+            }
         }
         
         return LayoutSimulationResult(titleOverflow: tOverflow, subtitleOverflow: sOverflow, trackOverflow: trOverflow)
