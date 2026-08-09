@@ -314,7 +314,7 @@ struct FrameView: View {
             }
             
             let tracklistView = ZStack(alignment: isCenter ? .top : .topLeading) {
-                let maxTracks = isCenter ? 8 : 12
+                let maxTracks = isCenter ? 12 : 12 // 12 tracks per page (2 cols of 6 in center, or 1 col of 12 otherwise)
                 let currentPage = currentTrackIndex / maxTracks
                 let nextPage = (nextTrackIndex ?? currentTrackIndex) / maxTracks
                 
@@ -322,79 +322,16 @@ struct FrameView: View {
                 let start1 = currentPage * maxTracks
                 let end1 = min(start1 + maxTracks, meta.tracks.count)
                 
-                VStack(alignment: isCenter ? .center : .leading, spacing: 15 * scale) {
-                    ForEach(start1..<end1, id: \.self) { i in
-                        let track = meta.tracks[i]
-                        let displayTitle = formattedTitle(for: track, index: i)
-                        let style = trackStyle(for: i)
-                        // Reverse engineer the transition progress from weight (since we need 0.0-1.0 for KeynoteTransitionText)
-                        let rawProgress = (style.weight - 400.0) / 300.0
-                        let artistSuffix = formattedArtistSuffix(for: track)
-                        
-                        HStack(alignment: .firstTextBaseline, spacing: 0) {
-                            KeynoteTransitionText(
-                                text: displayTitle,
-                                transitionProgress: rawProgress,
-                                regularFont: dynamicNSFont(size: CGFloat(trackFontSize * 1.2) * scale, weight: 400.0),
-                                boldFont: dynamicNSFont(size: CGFloat(trackFontSize * 1.2) * scale, weight: 700.0),
-                                color: effectiveTextColor.opacity(style.opacity)
-                            )
-                            
-                            if !artistSuffix.isEmpty {
-                                KeynoteTransitionText(
-                                    text: artistSuffix,
-                                    transitionProgress: rawProgress,
-                                    regularFont: dynamicNSFont(size: CGFloat(trackFontSize * 0.8) * scale, weight: 400.0),
-                                    boldFont: dynamicNSFont(size: CGFloat(trackFontSize * 0.8) * scale, weight: 700.0),
-                                    color: effectiveTextColor.opacity(style.opacity * 0.8)
-                                )
-                            }
-                        }
-                        .lineLimit(1)
-                        .drawingGroup()
-                        .scaleEffect(style.scale / 1.2, anchor: isCenter ? .center : .leading)
-                    }
-                }
-                .opacity(currentPage != nextPage ? 1.0 - transitionProgress : 1.0)
+                trackListBlock(startIndex: start1, endIndex: end1, isCenter: isCenter)
+                    .opacity(currentPage != nextPage ? 1.0 - transitionProgress : 1.0)
                 
                 // Next Page (crossfade)
                 if currentPage != nextPage {
                     let start2 = nextPage * maxTracks
                     let end2 = min(start2 + maxTracks, meta.tracks.count)
                     
-                    VStack(alignment: isCenter ? .center : .leading, spacing: 15 * scale) {
-                        ForEach(start2..<end2, id: \.self) { i in
-                            let track = meta.tracks[i]
-                            let displayTitle = formattedTitle(for: track, index: i)
-                            let style = trackStyle(for: i)
-                            let rawProgress = (style.weight - 400.0) / 300.0
-                            let artistSuffix = formattedArtistSuffix(for: track)
-                            
-                            HStack(alignment: .firstTextBaseline, spacing: 0) {
-                                KeynoteTransitionText(
-                                    text: displayTitle,
-                                    transitionProgress: rawProgress,
-                                    regularFont: dynamicNSFont(size: CGFloat(trackFontSize * 1.2) * scale, weight: 400.0),
-                                    boldFont: dynamicNSFont(size: CGFloat(trackFontSize * 1.2) * scale, weight: 700.0),
-                                    color: effectiveTextColor.opacity(style.opacity)
-                                )
-                                
-                                if !artistSuffix.isEmpty {
-                                    KeynoteTransitionText(
-                                        text: artistSuffix,
-                                        transitionProgress: rawProgress,
-                                        regularFont: dynamicNSFont(size: CGFloat(trackFontSize * 0.8) * scale, weight: 400.0),
-                                        boldFont: dynamicNSFont(size: CGFloat(trackFontSize * 0.8) * scale, weight: 700.0),
-                                        color: effectiveTextColor.opacity(style.opacity * 0.8)
-                                    )
-                                }
-                            }
-                            .lineLimit(1)
-                            .drawingGroup()
-                            .scaleEffect(style.scale / 1.2, anchor: isCenter ? .center : .leading)
-                        }
-                    }
-                    .opacity(transitionProgress)
+                    trackListBlock(startIndex: start2, endIndex: end2, isCenter: isCenter)
+                        .opacity(transitionProgress)
                 }
             }
             
@@ -412,6 +349,71 @@ struct FrameView: View {
         }
         .frame(maxHeight: .infinity)
         .environment(\.locale, cjkLanguageCode != nil ? Locale(identifier: cjkLanguageCode!) : Locale.current)
+    }
+    
+    @ViewBuilder
+    private func trackListBlock(startIndex: Int, endIndex: Int, isCenter: Bool) -> some View {
+        if isCenter {
+            let total = endIndex - startIndex
+            let leftCount = (total + 1) / 2
+            let leftEnd = startIndex + leftCount
+            
+            HStack(alignment: .top, spacing: 80 * scale) {
+                // Left Column
+                VStack(alignment: .leading, spacing: 15 * scale) {
+                    ForEach(startIndex..<leftEnd, id: \.self) { i in
+                        singleTrackRow(index: i, isCenter: isCenter)
+                    }
+                }
+                
+                // Right Column
+                if leftEnd < endIndex {
+                    VStack(alignment: .leading, spacing: 15 * scale) {
+                        ForEach(leftEnd..<endIndex, id: \.self) { i in
+                            singleTrackRow(index: i, isCenter: isCenter)
+                        }
+                    }
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 15 * scale) {
+                ForEach(startIndex..<endIndex, id: \.self) { i in
+                    singleTrackRow(index: i, isCenter: isCenter)
+                }
+            }
+        }
+    }
+    
+    @ViewBuilder
+    private func singleTrackRow(index i: Int, isCenter: Bool) -> some View {
+        let track = meta.tracks[i]
+        let displayTitle = formattedTitle(for: track, index: i)
+        let style = trackStyle(for: i)
+        let rawProgress = (style.weight - 400.0) / 300.0
+        let artistSuffix = formattedArtistSuffix(for: track)
+        
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            KeynoteTransitionText(
+                text: displayTitle,
+                transitionProgress: rawProgress,
+                regularFont: dynamicNSFont(size: CGFloat(trackFontSize * 1.2) * scale, weight: 400.0),
+                boldFont: dynamicNSFont(size: CGFloat(trackFontSize * 1.2) * scale, weight: 700.0),
+                color: effectiveTextColor.opacity(style.opacity)
+            )
+            
+            if !artistSuffix.isEmpty {
+                KeynoteTransitionText(
+                    text: artistSuffix,
+                    transitionProgress: rawProgress,
+                    regularFont: dynamicNSFont(size: CGFloat(trackFontSize * 0.8) * scale, weight: 400.0),
+                    boldFont: dynamicNSFont(size: CGFloat(trackFontSize * 0.8) * scale, weight: 700.0),
+                    color: effectiveTextColor.opacity(style.opacity * 0.8)
+                )
+            }
+        }
+        .lineLimit(1)
+        .drawingGroup()
+        .scaleEffect(style.scale / 1.2, anchor: .leading)
     }
 }
 
