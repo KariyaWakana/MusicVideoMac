@@ -241,7 +241,6 @@ struct FrameView: View {
                     VStack(spacing: 40 * scale) {
                         if metadataPosition == "Top" {
                             metadataBlock
-                            Spacer()
                         }
                         
                         if let cover = coverImage {
@@ -258,7 +257,6 @@ struct FrameView: View {
                         }
                         
                         if metadataPosition != "Top" {
-                            Spacer()
                             metadataBlock
                         }
                     }
