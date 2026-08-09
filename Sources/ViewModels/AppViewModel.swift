@@ -424,9 +424,16 @@ class AppViewModel {
         
         // Apply Layout Settings
         let defaults = UserDefaults.standard
+        var finalMetaPos = settings.metadataPosition
+        var finalVertAlign = settings.verticalAlignment
+        if finalMetaPos == "Split" {
+            finalVertAlign = "Split"
+            finalMetaPos = "Top"
+        }
+        
         if let v = settings.layoutMode { defaults.set(v, forKey: "layoutMode") }
-        if let v = settings.verticalAlignment { defaults.set(v, forKey: "verticalAlignment") }
-        if let v = settings.metadataPosition { defaults.set(v, forKey: "metadataPosition") }
+        if let v = finalVertAlign { defaults.set(v, forKey: "verticalAlignment") }
+        if let v = finalMetaPos { defaults.set(v, forKey: "metadataPosition") }
         if let v = settings.isCompilation { defaults.set(v, forKey: "isCompilation") }
         if let v = settings.trackNumberStyle { defaults.set(v, forKey: "trackNumberStyle") }
         if let v = settings.coverScale { defaults.set(v, forKey: "coverScale") }

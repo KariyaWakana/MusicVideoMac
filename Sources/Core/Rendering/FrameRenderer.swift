@@ -222,6 +222,7 @@ struct FrameView: View {
         switch verticalAlignment {
         case "Top": return .top
         case "Bottom": return .bottom
+        case "Center", "Split": return .center // "Split" pushes internally via Spacer, so the container aligns to center
         default: return .center
         }
     }
@@ -231,42 +232,48 @@ struct FrameView: View {
             effectiveBgColor.edgesIgnoringSafeArea(.all)
             
             if layoutMode == "Center" {
-                HStack(alignment: .center, spacing: 40 * scale) {
+                VStack(spacing: 0) {
+                    if verticalAlignment == "Bottom" || verticalAlignment == "Center" { Spacer() }
                     
-                    // Left Tracks (roughly 1/3 width)
-                    trackListBlock(startIndex: 0, endIndex: -1, isCenter: true, forceLeft: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    
-                    // Center Cover + Meta (roughly 1/3 width)
-                    VStack(spacing: 40 * scale) {
-                        if metadataPosition == "Top" {
-                            metadataBlock
-                        }
+                    HStack(alignment: .center, spacing: 40 * scale) {
                         
-                        if let cover = coverImage {
-                            Image(nsImage: cover)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .frame(width: 600 * scale * coverScale, height: 600 * scale * coverScale)
-                                .shadow(color: .black.opacity(0.6), radius: 15 * scale, x: 0, y: 15 * scale)
-                        } else {
-                            Rectangle()
-                                .fill(Color.gray)
-                                .frame(width: 600 * scale * coverScale, height: 600 * scale * coverScale)
-                                .shadow(color: .black.opacity(0.6), radius: 15 * scale, x: 0, y: 15 * scale)
-                        }
+                        // Left Tracks (roughly 1/3 width)
+                        trackListBlock(startIndex: 0, endIndex: -1, isCenter: true, forceLeft: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                         
-                        if metadataPosition != "Top" {
-                            metadataBlock
+                        // Center Cover + Meta (roughly 1/3 width)
+                        VStack(spacing: 40 * scale) {
+                            if metadataPosition == "Top" {
+                                metadataBlock
+                            }
+                            
+                            if let cover = coverImage {
+                                Image(nsImage: cover)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 600 * scale * coverScale, height: 600 * scale * coverScale)
+                                    .shadow(color: .black.opacity(0.6), radius: 15 * scale, x: 0, y: 15 * scale)
+                            } else {
+                                Rectangle()
+                                    .fill(Color.gray)
+                                    .frame(width: 600 * scale * coverScale, height: 600 * scale * coverScale)
+                                    .shadow(color: .black.opacity(0.6), radius: 15 * scale, x: 0, y: 15 * scale)
+                            }
+                            
+                            if metadataPosition != "Top" {
+                                metadataBlock
+                            }
                         }
+                        .frame(width: 600 * scale * max(1.0, coverScale)) // stable center width based on cover size
+                        
+                        // Right Tracks (roughly 1/3 width)
+                        trackListBlock(startIndex: 0, endIndex: -1, isCenter: true, forceRight: true)
+                            .frame(maxWidth: .infinity, alignment: .leading) // User requested left-aligned text for right tracks too
                     }
-                    .frame(width: 600 * scale * max(1.0, coverScale)) // stable center width based on cover size
+                    .padding(.horizontal, 60 * scale)
                     
-                    // Right Tracks (roughly 1/3 width)
-                    trackListBlock(startIndex: 0, endIndex: -1, isCenter: true, forceRight: true)
-                        .frame(maxWidth: .infinity, alignment: .leading) // User requested left-aligned text for right tracks too
+                    if verticalAlignment == "Top" || verticalAlignment == "Center" { Spacer() }
                 }
-                .padding(.horizontal, 60 * scale)
                 .padding(.vertical, 60 * scale)
             } else {
                 HStack(alignment: alignment, spacing: 80 * scale) {
@@ -340,14 +347,12 @@ struct FrameView: View {
         VStack(alignment: .leading, spacing: 30 * scale) {
             if metadataPosition == "Top" {
                 metadataBlock
+                if verticalAlignment == "Split" { Spacer() }
                 trackListBlock(startIndex: 0, endIndex: -1, isCenter: false)
-            } else if metadataPosition == "Bottom" {
-                trackListBlock(startIndex: 0, endIndex: -1, isCenter: false)
-                metadataBlock
             } else {
-                metadataBlock
-                Spacer()
                 trackListBlock(startIndex: 0, endIndex: -1, isCenter: false)
+                if verticalAlignment == "Split" { Spacer() }
+                metadataBlock
             }
         }
     }

@@ -36,18 +36,27 @@ struct LayoutSettingsForm: View {
             Section {
                 Picker("Cover Position:", selection: $layoutMode) {
                     Text("Cover Left").tag("Left")
+                    Text("Cover Center (Triptych)").tag("Center")
                     Text("Cover Right").tag("Right")
-                    Text("Centered Top").tag("Center")
                 }
-                Picker("Text Vertical Alignment:", selection: $verticalAlignment) {
+                
+                Picker("Vertical Alignment:", selection: $verticalAlignment) {
                     Text("Top").tag("Top")
                     Text("Center").tag("Center")
                     Text("Bottom").tag("Bottom")
+                    if layoutMode != "Center" {
+                        Text("Split (Space Between)").tag("Split")
+                    }
                 }
-                Picker("Metadata Order:", selection: $metadataPosition) {
-                    Text("Title/Artist on Top").tag("Top")
-                    Text("Title/Artist on Bottom").tag("Bottom")
-                    Text("Split (Title Top, Tracks Bottom)").tag("Split")
+                .onChange(of: layoutMode) { _, newMode in
+                    if newMode == "Center" && verticalAlignment == "Split" {
+                        verticalAlignment = "Center" // Fallback if Center mode hides Split
+                    }
+                }
+                
+                Picker("Title Position:", selection: $metadataPosition) {
+                    Text(layoutMode == "Center" ? "Title Above Cover" : "Title Above Tracks").tag("Top")
+                    Text(layoutMode == "Center" ? "Title Below Cover" : "Title Below Tracks").tag("Bottom")
                 }
                 Toggle("Compilation Album (Show Track Artists)", isOn: $isCompilation)
                 
@@ -213,6 +222,16 @@ struct LayoutSettingsForm: View {
         .focusEffectDisabled()
         .focused($focusedField, equals: .form)
         .defaultFocus($focusedField, .form)
+        .onAppear {
+            migrateLegacySettings()
+        }
+    }
+    
+    private func migrateLegacySettings() {
+        if metadataPosition == "Split" {
+            verticalAlignment = "Split"
+            metadataPosition = "Top"
+        }
     }
     
     private func openFontPanel() {
