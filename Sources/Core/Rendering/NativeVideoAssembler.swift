@@ -189,20 +189,23 @@ class NativeVideoAssembler {
         }
         
         // --- PHASE 3: EXPORT ---
-        await MainActor.run { progress("Exporting Final MP4 Container...", 0.85) }
+        await MainActor.run { progress("Exporting Final Video Container...", 0.85) }
         
         if FileManager.default.fileExists(atPath: outputURL.path) {
             try FileManager.default.removeItem(at: outputURL)
         }
         
-        // Use Highest Quality preset to ensure maximum compatibility and fidelity
-        guard let exportSession = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
+        let audioQuality = UserDefaults.standard.string(forKey: "audioQuality") ?? "AAC"
+        let preset = (audioQuality == "Lossless") ? AVAssetExportPresetPassthrough : AVAssetExportPresetHighestQuality
+        
+        guard let exportSession = AVAssetExportSession(asset: composition, presetName: preset) else {
             throw AssemblerError.writerInitializationFailed
         }
         
         exportSession.outputURL = outputURL
         exportSession.outputFileType = outputURL.pathExtension.lowercased() == "mov" ? .mov : .mp4
-        exportSession.shouldOptimizeForNetworkUse = true
+        // Network optimization is not compatible with Passthrough mode sometimes, so conditionally set it
+        exportSession.shouldOptimizeForNetworkUse = (audioQuality != "Lossless")
         
         await exportSession.export()
         

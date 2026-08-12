@@ -79,27 +79,97 @@ class MetadataFetcher {
         }
         
         // If we have a searchTerm from the UI, it takes absolute precedence over everything
-        let query = searchTerm.isEmpty ? baseMeta.title : searchTerm
-        if query.isEmpty {
+        var itunesQuery = searchTerm
+        var mbQuery = searchTerm
+        
+        if searchTerm.isEmpty {
+            let artistStr = baseMeta.artist.isEmpty ? "" : "\(baseMeta.artist) "
+            let titleStr = baseMeta.title.isEmpty ? "" : baseMeta.title
+            let combined = (artistStr + titleStr).trimmingCharacters(in: .whitespaces)
+            itunesQuery = combined
+            
+            if !baseMeta.artist.isEmpty && !baseMeta.title.isEmpty {
+                // Precise MusicBrainz advanced syntax
+                let safeArtist = baseMeta.artist.replacingOccurrences(of: "\"", with: "")
+                let safeTitle = baseMeta.title.replacingOccurrences(of: "\"", with: "")
+                mbQuery = "artist:\"\(safeArtist)\" AND release:\"\(safeTitle)\""
+            } else if !baseMeta.title.isEmpty {
+                let safeTitle = baseMeta.title.replacingOccurrences(of: "\"", with: "")
+                mbQuery = "release:\"\(safeTitle)\""
+            }
+        } else {
+            // For manual search term, just do a generic text search on MusicBrainz
+            let safeSearch = searchTerm.replacingOccurrences(of: "\"", with: "")
+            mbQuery = "release:\"\(safeSearch)\" OR artist:\"\(safeSearch)\""
+        }
+        
+        if itunesQuery.isEmpty {
             baseMeta.coverURL = localCoverURL
             completion(baseMeta)
             return
         }
         
-        // 2. Try MusicBrainz first
-        fetchFromMusicBrainz(query: query, baseMeta: baseMeta, localCoverURL: localCoverURL) { mbMeta in
-            if let mbMeta = mbMeta {
-                completion(mbMeta)
+        // 2. Try iTunes FIRST! (Fastest, best 1000x1000 covers, most mainstream albums)
+        fetchFromITunes(query: itunesQuery, baseMeta: baseMeta, localCoverURL: localCoverURL) { itunesMeta in
+            if let itunesMeta = itunesMeta {
+                completion(itunesMeta)
             } else {
-                // 3. Fallback to iTunes
-                fetchFromITunes(query: query, baseMeta: baseMeta, localCoverURL: localCoverURL, completion: completion)
+                // 3. Fallback to MusicBrainz (Better for obscure CDs or exact release years)
+                fetchFromMusicBrainz(query: mbQuery, baseMeta: baseMeta, localCoverURL: localCoverURL, completion: completion)
             }
         }
     }
     
+    private static func fetchFromITunes(query: String, baseMeta: AlbumMetadata, localCoverURL: URL?, completion: @escaping (AlbumMetadata?) -> Void) {
+        guard let encodedTerm = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+              let url = URL(string: "https://itunes.apple.com/search?term=\(encodedTerm)&entity=album&limit=1") else {
+            completion(nil)
+            return
+        }
+        
+        URLSession.shared.dataTask(with: url) { data, response, error in
+            guard let data = data, error == nil else {
+                completion(nil)
+                return
+            }
+            
+            do {
+                if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
+                   let results = json["results"] as? [[String: Any]],
+                   let firstResult = results.first {
+                    
+                    var meta = AlbumMetadata()
+                    // If local embedded tags are already present, keep them. Otherwise, use iTunes data.
+                    meta.title = baseMeta.title.isEmpty ? (firstResult["collectionName"] as? String ?? baseMeta.title) : baseMeta.title
+                    meta.artist = baseMeta.artist.isEmpty ? (firstResult["artistName"] as? String ?? baseMeta.artist) : baseMeta.artist
+                    
+                    if let releaseDate = firstResult["releaseDate"] as? String {
+                        meta.year = String(releaseDate.prefix(4))
+                    }
+                    meta.genre = firstResult["primaryGenreName"] as? String ?? baseMeta.genre
+                    
+                    if localCoverURL != nil {
+                        meta.coverURL = localCoverURL
+                    } else if let artworkUrl100 = firstResult["artworkUrl100"] as? String {
+                        let highResUrl = artworkUrl100.replacingOccurrences(of: "100x100bb", with: "1000x1000bb")
+                        meta.coverURL = URL(string: highResUrl)
+                    }
+                    
+                    DispatchQueue.main.async {
+                        completion(meta)
+                    }
+                } else {
+                    completion(nil)
+                }
+            } catch {
+                completion(nil)
+            }
+        }.resume()
+    }
+    
     private static func fetchFromMusicBrainz(query: String, baseMeta: AlbumMetadata, localCoverURL: URL?, completion: @escaping (AlbumMetadata?) -> Void) {
         guard let encodedTerm = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://musicbrainz.org/ws/2/release/?query=release:\(encodedTerm)&fmt=json") else {
+              let url = URL(string: "https://musicbrainz.org/ws/2/release/?query=\(encodedTerm)&fmt=json") else {
             completion(nil)
             return
         }
@@ -132,6 +202,7 @@ class MetadataFetcher {
                     if let date = firstRelease["date"] as? String {
                         meta.year = String(date.prefix(4))
                     }
+                    meta.genre = baseMeta.genre
                     
                     // Fetch Cover Art
                     if localCoverURL != nil {
@@ -143,9 +214,8 @@ class MetadataFetcher {
                                 meta.coverURL = coverURL
                                 DispatchQueue.main.async { completion(meta) }
                             } else {
-                                // If MusicBrainz has the text data but no cover, we fail the MB search
-                                // and fallback to iTunes which might have the cover.
-                                completion(nil)
+                                // If MusicBrainz has no cover, we return the meta without a cover URL
+                                DispatchQueue.main.async { completion(meta) }
                             }
                         }
                     }
@@ -185,64 +255,6 @@ class MetadataFetcher {
                 }
             } catch {
                 completion(nil)
-            }
-        }.resume()
-    }
-    
-    private static func fetchFromITunes(query: String, baseMeta: AlbumMetadata, localCoverURL: URL?, completion: @escaping (AlbumMetadata?) -> Void) {
-        guard let encodedTerm = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://itunes.apple.com/search?term=\(encodedTerm)&entity=album&limit=1") else {
-            var meta = baseMeta
-            meta.coverURL = localCoverURL
-            DispatchQueue.main.async { completion(meta) }
-            return
-        }
-        
-        URLSession.shared.dataTask(with: url) { data, response, error in
-            guard let data = data, error == nil else {
-                var meta = baseMeta
-                meta.coverURL = localCoverURL
-                DispatchQueue.main.async { completion(meta) }
-                return
-            }
-            
-            do {
-                if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any],
-                   let results = json["results"] as? [[String: Any]],
-                   let firstResult = results.first {
-                    
-                    var meta = AlbumMetadata()
-                    meta.title = baseMeta.title.isEmpty ? (firstResult["collectionName"] as? String ?? baseMeta.title) : baseMeta.title
-                    meta.artist = baseMeta.artist.isEmpty ? (firstResult["artistName"] as? String ?? baseMeta.artist) : baseMeta.artist
-                    
-                    if let releaseDate = firstResult["releaseDate"] as? String {
-                        meta.year = String(releaseDate.prefix(4))
-                    }
-                    meta.genre = firstResult["primaryGenreName"] as? String ?? meta.genre
-                    
-                    if localCoverURL != nil {
-                        meta.coverURL = localCoverURL
-                    } else if let artworkUrl100 = firstResult["artworkUrl100"] as? String {
-                        let highResUrl = artworkUrl100.replacingOccurrences(of: "100x100bb", with: "1000x1000bb")
-                        meta.coverURL = URL(string: highResUrl)
-                    }
-                    
-                    DispatchQueue.main.async {
-                        completion(meta)
-                    }
-                } else {
-                    DispatchQueue.main.async {
-                        var meta = baseMeta
-                        meta.coverURL = localCoverURL
-                        completion(meta)
-                    }
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    var meta = baseMeta
-                    meta.coverURL = localCoverURL
-                    completion(meta)
-                }
             }
         }.resume()
     }

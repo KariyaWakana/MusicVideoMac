@@ -279,6 +279,32 @@ class AppViewModel {
                     return
                 }
                 
+                // CD Ripping Intercept
+                if let dir = result.directory, dir.path.hasPrefix("/Volumes/") && result.tracks.first?.filePath.lowercased().hasSuffix("aiff") == true {
+                    let alert = NSAlert()
+                    alert.messageText = "Audio CD Detected"
+                    alert.informativeText = "Would you like to rip this CD to your local drive before continuing? This is highly recommended to prevent stuttering, slow rendering, and excessive optical drive wear."
+                    alert.addButton(withTitle: "Rip CD (Recommended)")
+                    alert.addButton(withTitle: "Skip (Read from Disc)")
+                    
+                    let response = alert.runModal()
+                    if response == .alertFirstButtonReturn {
+                        self.statusMessage = "Select destination for ripped tracks..."
+                        CDRipManager.shared.ripAudioCD(from: dir, progress: { status, fraction in
+                            self.statusMessage = status + String(format: " (%.0f%%)", fraction * 100)
+                        }) { rippedURL in
+                            if let newURL = rippedURL {
+                                // Reload from the newly ripped folder on disk!
+                                self.loadAlbum(from: newURL)
+                            } else {
+                                self.statusMessage = "CD Ripping cancelled."
+                                self.isProcessing = false
+                            }
+                        }
+                        return // Stop normal loading, let CDRipManager take over
+                    }
+                }
+                
                 self.meta.tracks = result.tracks
                 self.activeAlbumDirectory = result.directory
                 if let parsedTitle = result.albumTitle { self.meta.title = parsedTitle }

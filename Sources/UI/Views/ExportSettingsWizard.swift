@@ -8,6 +8,7 @@ struct ExportSettingsWizard: View {
     @AppStorage("videoResolution") private var videoResolution: String = "1080p"
     @AppStorage("videoFramerate") private var videoFramerate: Int = 30
     @AppStorage("outputFormat") private var outputFormat: String = "mp4"
+    @AppStorage("audioQuality") private var audioQuality: String = "AAC"
     @AppStorage("hardwareAcceleration") private var hardwareAcceleration: Bool = true
     
     var body: some View {
@@ -35,7 +36,28 @@ struct ExportSettingsWizard: View {
                         Text("MP4 (.mp4)").tag("mp4")
                         Text("QuickTime (.mov)").tag("mov")
                     }
+                    .onChange(of: outputFormat) { _, newFormat in
+                        if newFormat == "mp4" && audioQuality == "Lossless" {
+                            audioQuality = "AAC"
+                        }
+                    }
                 } header: { Text("Video Profile").font(.headline) }
+                
+                Section {
+                    Picker("Audio Quality:", selection: $audioQuality) {
+                        Text("Standard (AAC)").tag("AAC")
+                        Text("Lossless (Passthrough)").tag("Lossless")
+                    }
+                    .onChange(of: audioQuality) { _, newQuality in
+                        if newQuality == "Lossless" {
+                            outputFormat = "mov"
+                        }
+                    }
+                    if audioQuality == "Lossless" {
+                        Text("Lossless requires .mov format. Original audio bitstream will be copied directly.")
+                            .font(.caption).foregroundColor(.secondary)
+                    }
+                } header: { Text("Audio Profile").font(.headline) }
                 
                 Section {
                     Toggle("Hardware Acceleration (VideoToolbox)", isOn: $hardwareAcceleration)

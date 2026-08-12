@@ -295,3 +295,145 @@ class AudioScanner {
         return (tracks, albumTitle, albumArtist)
     }
 }
+import Foundation
+import AppKit
+
+class CDRipManager {
+    static let shared = CDRipManager()
+    
+    // Rips the CD at `sourceURL` (e.g. /Volumes/Audio CD) to a user-selected directory.
+    // Progress callback returns 0.0 to 1.0
+    func ripAudioCD(from sourceURL: URL, progress: @escaping (String, Double) -> Void, completion: @escaping (URL?) -> Void) {
+        
+        let fileManager = FileManager.default
+        let extensions = ["aiff", "aif", "wav"]
+        var audioFiles: [URL] = []
+        
+        do {
+            let files = try fileManager.contentsOfDirectory(at: sourceURL, includingPropertiesForKeys: nil)
+            audioFiles = files.filter { extensions.contains($0.pathExtension.lowercased()) }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+        } catch {
+            DispatchQueue.main.async { completion(nil) }
+            return
+        }
+        
+        if audioFiles.isEmpty {
+            DispatchQueue.main.async { completion(nil) }
+            return
+        }
+        
+        // Let the user choose destination via NSOpenPanel
+        DispatchQueue.main.async {
+            let panel = NSOpenPanel()
+            panel.message = "Choose a destination folder to save the ripped CD tracks."
+            panel.prompt = "Save Rips Here"
+            panel.canChooseDirectories = true
+            panel.canCreateDirectories = true
+            panel.canChooseFiles = false
+            
+            // Suggest ~/Music/MusicVideoMacApp/Rips/
+            let musicDir = fileManager.urls(for: .musicDirectory, in: .userDomainMask).first!
+            let appMusicDir = musicDir.appendingPathComponent("MusicVideoMacApp").appendingPathComponent("Rips")
+            
+            try? fileManager.createDirectory(at: appMusicDir, withIntermediateDirectories: true, attributes: nil)
+            panel.directoryURL = appMusicDir
+            
+            panel.begin { response in
+                if response == .OK, let destinationURL = panel.url {
+                    Task.detached(priority: .userInitiated) {
+                        await self.performRip(files: audioFiles, to: destinationURL, progress: progress) { finalURL in
+                            DispatchQueue.main.async { completion(finalURL) }
+                        }
+                    }
+                } else {
+                    completion(nil) // User cancelled
+                }
+            }
+        }
+    }
+    
+    private func performRip(files: [URL], to destination: URL, progress: @escaping (String, Double) -> Void, completion: @escaping (URL?) -> Void) async {
+        let fileManager = FileManager.default
+        
+        // Create an album folder inside the destination
+        // If it's just "Audio CD", try to get a better name or just use a timestamp
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
+        let albumFolderName = "Audio_CD_Rip_\(dateFormatter.string(from: Date()))"
+        let targetDir = destination.appendingPathComponent(albumFolderName)
+        
+        do {
+            try fileManager.createDirectory(at: targetDir, withIntermediateDirectories: true, attributes: nil)
+        } catch {
+            completion(nil)
+            return
+        }
+        
+        let totalFiles = files.count
+        
+        for (index, file) in files.enumerated() {
+            let fileName = file.lastPathComponent
+            let targetURL = targetDir.appendingPathComponent(fileName)
+            
+            let trackProgress = Double(index) / Double(totalFiles)
+            await MainActor.run {
+                progress("Ripping \(fileName)...", trackProgress)
+            }
+            
+            do {
+                // Audio CDs are slow to read, so we read chunks and write chunks to show real progress
+                // However, standard FileManager.copyItem is usually fine for a 50MB aiff file (takes 1-3 seconds).
+                // To keep it robust and not freeze the UI, we use FileHandle copying.
+                try await copyFileWithProgress(from: file, to: targetURL) { fraction in
+                    let overallProgress = trackProgress + (fraction / Double(totalFiles))
+                    progress("Ripping \(fileName)...", overallProgress)
+                }
+            } catch {
+                print("Failed to rip file: \(file.path) - \(error.localizedDescription)")
+                // Continue to next file
+            }
+        }
+        
+        await MainActor.run {
+            progress("CD Rip Complete!", 1.0)
+        }
+        
+        completion(targetDir)
+    }
+    
+    private func copyFileWithProgress(from source: URL, to destination: URL, progressHandler: @escaping (Double) -> Void) async throws {
+        let chunkSize = 1024 * 1024 * 4 // 4 MB chunks
+        let sourceHandle = try FileHandle(forReadingFrom: source)
+        
+        // Create empty destination file
+        FileManager.default.createFile(atPath: destination.path, contents: nil, attributes: nil)
+        let destinationHandle = try FileHandle(forWritingTo: destination)
+        
+        defer {
+            try? sourceHandle.close()
+            try? destinationHandle.close()
+        }
+        
+        let fileAttributes = try FileManager.default.attributesOfItem(atPath: source.path)
+        let fileSize = fileAttributes[.size] as? UInt64 ?? 0
+        
+        var bytesRead: UInt64 = 0
+        
+        while true {
+            guard let data = try sourceHandle.read(upToCount: chunkSize), !data.isEmpty else {
+                break
+            }
+            
+            try destinationHandle.write(contentsOf: data)
+            bytesRead += UInt64(data.count)
+            
+            if fileSize > 0 {
+                let fraction = Double(bytesRead) / Double(fileSize)
+                await MainActor.run { progressHandler(fraction) }
+            }
+            
+            // Yield to avoid blocking the cooperative thread pool
+            await Task.yield()
+        }
+    }
+}
