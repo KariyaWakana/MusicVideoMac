@@ -50,7 +50,7 @@ struct MetadataEditorView: View {
                             provider.loadDataRepresentation(forTypeIdentifier: UTType.pdf.identifier) { data, _ in
                                 if let data = data, let pdf = PDFDocument(data: data), let page = pdf.page(at: 0) {
                                     let imgRect = page.bounds(for: .mediaBox)
-                                    let image = page.thumbnail(of: imgRect.size, for: .mediaBox)
+                                    let image = page.thumbnail(of: imgRect.size, for: .mediaBox).squareCropped()
                                     DispatchQueue.main.async {
                                         self.viewModel.coverImage = image
                                     }
@@ -59,7 +59,7 @@ struct MetadataEditorView: View {
                             return true
                         } else if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
                             provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
-                                if let data = data, let image = NSImage(data: data) {
+                                if let data = data, let image = NSImage(data: data)?.squareCropped() {
                                     DispatchQueue.main.async {
                                         self.viewModel.coverImage = image
                                     }
@@ -175,10 +175,32 @@ struct MetadataEditorView: View {
             if response == .OK, let url = panel.url {
                 if let image = NSImage(contentsOf: url) {
                     let oldImage = viewModel.coverImage
-                    viewModel.coverImage = image
-                    viewModel.registerPropertyUndo(undoManager: undoManager, keyPath: \.coverImage, oldValue: oldImage, newValue: image)
+                    let squareImage = image.squareCropped()
+                    viewModel.coverImage = squareImage
+                    viewModel.registerPropertyUndo(undoManager: undoManager, keyPath: \.coverImage, oldValue: oldImage, newValue: squareImage)
                 }
             }
         }
+    }
+}
+
+extension NSImage {
+    func squareCropped() -> NSImage {
+        let size = self.size
+        let side = min(size.width, size.height)
+        let xOffset = (size.width - side) / 2.0
+        let yOffset = (size.height - side) / 2.0
+        
+        let croppedRect = NSRect(x: xOffset, y: yOffset, width: side, height: side)
+        let newImage = NSImage(size: NSSize(width: side, height: side))
+        
+        newImage.lockFocus()
+        self.draw(in: NSRect(origin: .zero, size: NSSize(width: side, height: side)),
+                  from: croppedRect,
+                  operation: .copy,
+                  fraction: 1.0)
+        newImage.unlockFocus()
+        
+        return newImage
     }
 }
