@@ -105,7 +105,7 @@ struct SettingsView: View {
                     } header: { Text("Performance").font(.headline) }
                     
                     Section {
-                        Toggle("Allow Direct CD Reading (Not Recommended)", isOn: $allowDirectCDReading)
+                        Toggle("Allow Direct CD Reading", isOn: $allowDirectCDReading)
                         Text("Enables skipping the CD ripping process. Rendering directly from physical discs is extremely slow and can severely damage slot-loading optical drives (e.g. Apple SuperDrive) due to overheating or lock-ups.")
                             .font(.caption).foregroundColor(.red)
                     } header: { Text("Advanced Hardware").font(.headline) }

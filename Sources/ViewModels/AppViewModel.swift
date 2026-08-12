@@ -282,13 +282,13 @@ class AppViewModel {
                 // CD Ripping Intercept
                 if let dir = result.directory, dir.path.hasPrefix("/Volumes/") && result.tracks.first?.filePath.lowercased().hasSuffix("aiff") == true {
                     let alert = NSAlert()
-                    alert.messageText = "Audio CD Detected (Rip Required)"
+                    alert.messageText = "Audio CD Detected"
                     alert.informativeText = "Please rip this CD to your local drive before continuing. Rendering video directly from a physical disc is extremely slow and can cause slot-loading drives (like Apple SuperDrive) to overheat or fail to eject if a crash occurs."
-                    alert.addButton(withTitle: "Rip CD to Local Drive (Safe)")
+                    alert.addButton(withTitle: "Rip CD to Local Drive")
                     
                     let allowDirectReading = UserDefaults.standard.bool(forKey: "allowDirectCDReading")
                     if allowDirectReading {
-                        alert.addButton(withTitle: "Skip (Dangerous)")
+                        alert.addButton(withTitle: "Skip")
                     } else {
                         alert.addButton(withTitle: "Cancel")
                     }
