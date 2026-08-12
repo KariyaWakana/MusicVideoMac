@@ -130,6 +130,9 @@
     "Choose Font..." : {
 
     },
+    "Clear Completed" : {
+
+    },
     "Colors" : {
 
     },
@@ -164,6 +167,9 @@
 
     },
     "Custom..." : {
+
+    },
+    "Done" : {
 
     },
     "Drag and drop an audio folder here, or click to browse." : {
@@ -257,6 +263,9 @@
 
     },
     "Factory Reset" : {
+
+    },
+    "Failed" : {
 
     },
     "Font Family:" : {
@@ -378,10 +387,22 @@
     "pt" : {
 
     },
+    "Queue is empty" : {
+
+    },
+    "Queued" : {
+
+    },
     "QuickTime (.mov)" : {
 
     },
+    "Render Queue" : {
+
+    },
     "Render Settings" : {
+
+    },
+    "Rendering" : {
 
     },
     "Resolution:" : {
@@ -391,9 +412,6 @@
 
     },
     "Right-click to Scan Document with iPhone" : {
-
-    },
-    "Save Changes" : {
 
     },
     "Save Cover..." : {
@@ -406,6 +424,9 @@
 
     },
     "Save Settings" : {
+
+    },
+    "Save to Album folder" : {
 
     },
     "Save Video..." : {
@@ -547,6 +568,9 @@
 
     },
     "Video Settings" : {
+
+    },
+    "View active and queued rendering jobs" : {
 
     },
     "Year" : {

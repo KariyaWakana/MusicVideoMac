@@ -17,6 +17,7 @@ class RenderJob: Identifiable {
     let coverImage: NSImage?
     let resolution: String
     let outputURL: URL
+    let defaultsSuite: String
     
     var status: RenderJobStatus = .queued
     var progress: Double = 0.0
@@ -28,6 +29,16 @@ class RenderJob: Identifiable {
         self.coverImage = coverImage
         self.resolution = resolution
         self.outputURL = outputURL
+        
+        let uuidStr = self.id.uuidString
+        self.defaultsSuite = "RenderJob-\(uuidStr)"
+        
+        if let customDefaults = UserDefaults(suiteName: self.defaultsSuite) {
+            let standardDict = UserDefaults.standard.dictionaryRepresentation()
+            for (key, value) in standardDict {
+                customDefaults.set(value, forKey: key)
+            }
+        }
     }
 }
 
@@ -60,7 +71,7 @@ class RenderQueueManager {
         nextJob.status = .rendering
         nextJob.message = "Assembling video with Native VFR Engine..."
         
-        NativeVideoAssembler.assemble(meta: nextJob.meta, coverImage: nextJob.coverImage, resolution: nextJob.resolution, outputURL: nextJob.outputURL) { msg, percent in
+        NativeVideoAssembler.assemble(meta: nextJob.meta, coverImage: nextJob.coverImage, resolution: nextJob.resolution, outputURL: nextJob.outputURL, defaultsSuite: nextJob.defaultsSuite) { msg, percent in
             DispatchQueue.main.async {
                 nextJob.message = msg
                 if let percent = percent {
@@ -78,6 +89,9 @@ class RenderQueueManager {
                 } else {
                     nextJob.status = .failed("Failed to render video.")
                 }
+                
+                // Cleanup snapshot defaults
+                UserDefaults().removePersistentDomain(forName: nextJob.defaultsSuite)
                 
                 self.isRendering = false
                 self.processNext()

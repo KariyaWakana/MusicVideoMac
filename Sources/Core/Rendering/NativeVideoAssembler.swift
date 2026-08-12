@@ -28,22 +28,21 @@ enum AssemblerError: Error, LocalizedError {
 
 class NativeVideoAssembler {
     
-    static func assemble(meta: AlbumMetadata, coverImage: NSImage?, resolution: String, outputURL: URL, progress: @escaping (String, Double?) -> Void, completion: @escaping (Bool) -> Void) {
-        let width: CGFloat = resolution == "4K" ? 3840 : (resolution == "480p" ? 852 : 1920)
-        let height: CGFloat = resolution == "4K" ? 2160 : (resolution == "480p" ? 480 : 1080)
-        let renderSize = CGSize(width: width, height: height)
-        let scale: CGFloat = resolution == "4K" ? 2.0 : (resolution == "480p" ? (480.0 / 1080.0) : 1.0)
+    static func assemble(meta: AlbumMetadata, coverImage: NSImage?, resolution: String, outputURL: URL, defaultsSuite: String, progress: @escaping (String, Double?) -> Void, completion: @escaping (Bool) -> Void) {
         
-        // Calculate total duration
-        let totalDuration = meta.tracks.reduce(0.0) { $0 + $1.duration }
-        guard totalDuration > 0 else {
-            completion(false)
-            return
-        }
-        
-        Task.detached(priority: .userInitiated) {
+        let renderTask = Task.detached {
             do {
-                try await performAssembly(meta: meta, coverImage: coverImage, renderSize: renderSize, scale: scale, totalDuration: totalDuration, outputURL: outputURL, progress: progress)
+                let is4K = resolution == "4K"
+                let is480p = resolution == "480p"
+                
+                let width: CGFloat = is4K ? 3840 : (is480p ? 854 : 1920)
+                let height: CGFloat = is4K ? 2160 : (is480p ? 480 : 1080)
+                let scale: CGFloat = is4K ? 2.0 : (is480p ? (480.0 / 1080.0) : 1.0)
+                let renderSize = CGSize(width: width, height: height)
+                
+                let totalDuration = meta.tracks.reduce(0.0) { $0 + $1.duration }
+                
+                try await performAssembly(meta: meta, coverImage: coverImage, renderSize: renderSize, scale: scale, totalDuration: totalDuration, outputURL: outputURL, defaultsSuite: defaultsSuite, progress: progress)
                 await MainActor.run { completion(true) }
             } catch {
                 print("Native Assembly Error: \(error)")
@@ -55,7 +54,7 @@ class NativeVideoAssembler {
         }
     }
     
-    private static func performAssembly(meta: AlbumMetadata, coverImage: NSImage?, renderSize: CGSize, scale: CGFloat, totalDuration: Double, outputURL: URL, progress: @escaping (String, Double?) -> Void) async throws {
+    private static func performAssembly(meta: AlbumMetadata, coverImage: NSImage?, renderSize: CGSize, scale: CGFloat, totalDuration: Double, outputURL: URL, defaultsSuite: String, progress: @escaping (String, Double?) -> Void) async throws {
         
         // --- PHASE 1: VIDEO ONLY GENERATION ---
         await MainActor.run { progress("Rendering VFR Video Frames (No Audio)...", 0.1) }
@@ -106,7 +105,7 @@ class NativeVideoAssembler {
             let crossfadeFrames = isLastTrack ? 0 : Int(actualCrossfadeDuration * fps)
             let staticDuration = track.duration - (isLastTrack ? 0 : actualCrossfadeDuration)
             
-            let staticImage = try await generateCGImage(for: index, meta: meta, coverImage: coverImage, size: renderSize, scale: scale)
+            let staticImage = try await generateCGImage(for: index, meta: meta, coverImage: coverImage, size: renderSize, scale: scale, defaultsSuite: defaultsSuite)
             let staticBuffer = try createPixelBuffer(for: staticImage, adaptor: adaptor, renderSize: renderSize)
             
             // Adaptive VFR: 1 FPS for static portions (prevents encoder bottleneck while keeping scrubbing buttery smooth)
@@ -134,8 +133,8 @@ class NativeVideoAssembler {
                     let t1 = (Double(f) + 0.0) / Double(crossfadeFrames)
                     let t2 = (Double(f) + 0.5) / Double(crossfadeFrames)
                     
-                    let morphedCG1 = try await generateCGImage(for: index, nextTrackIndex: nextIndex, transitionProgress: t1, meta: meta, coverImage: coverImage, size: renderSize, scale: scale)
-                    let morphedCG2 = try await generateCGImage(for: index, nextTrackIndex: nextIndex, transitionProgress: t2, meta: meta, coverImage: coverImage, size: renderSize, scale: scale)
+                    let morphedCG1 = try await generateCGImage(for: index, nextTrackIndex: nextIndex, transitionProgress: t1, meta: meta, coverImage: coverImage, size: renderSize, scale: scale, defaultsSuite: defaultsSuite)
+                    let morphedCG2 = try await generateCGImage(for: index, nextTrackIndex: nextIndex, transitionProgress: t2, meta: meta, coverImage: coverImage, size: renderSize, scale: scale, defaultsSuite: defaultsSuite)
                     
                     let blendedBuffer = try createBlendedPixelBuffer(cgImage1: morphedCG1, cgImage2: morphedCG2, adaptor: adaptor, renderSize: renderSize)
                     
@@ -195,7 +194,8 @@ class NativeVideoAssembler {
             try FileManager.default.removeItem(at: outputURL)
         }
         
-        let audioQuality = UserDefaults.standard.string(forKey: "audioQuality") ?? "AAC"
+        let defaults = UserDefaults(suiteName: defaultsSuite) ?? UserDefaults.standard
+        let audioQuality = defaults.string(forKey: "audioQuality") ?? "AAC"
         let preset = (audioQuality == "Lossless") ? AVAssetExportPresetPassthrough : AVAssetExportPresetHighestQuality
         
         guard let exportSession = AVAssetExportSession(asset: composition, presetName: preset) else {
@@ -289,22 +289,23 @@ class NativeVideoAssembler {
     }
     
     @MainActor
-    private static func generateCGImage(for trackIndex: Int, nextTrackIndex: Int? = nil, transitionProgress: Double = 0.0, meta: AlbumMetadata, coverImage: NSImage?, size: CGSize, scale: CGFloat) throws -> CGImage {
+    private static func generateCGImage(for trackIndex: Int, nextTrackIndex: Int? = nil, transitionProgress: Double = 0.0, meta: AlbumMetadata, coverImage: NSImage?, size: CGSize, scale: CGFloat, defaultsSuite: String) throws -> CGImage {
         return try autoreleasepool {
-            // We reuse the existing FrameRenderer logic but return a CGImage instead of saving to disk
+            let defaults = UserDefaults(suiteName: defaultsSuite) ?? UserDefaults.standard
             
             // Read background color setting (bgColor is passed into FrameView)
-            let useCustomColors = UserDefaults.standard.bool(forKey: "useCustomColors")
+            let useCustomColors = defaults.bool(forKey: "useCustomColors")
             
             var bgColor = Color(NSColor.windowBackgroundColor)
             if useCustomColors {
-                let r = UserDefaults.standard.double(forKey: "customBgColorR")
-                let g = UserDefaults.standard.double(forKey: "customBgColorG")
-                let b = UserDefaults.standard.double(forKey: "customBgColorB")
+                let r = defaults.double(forKey: "customBgColorR")
+                let g = defaults.double(forKey: "customBgColorG")
+                let b = defaults.double(forKey: "customBgColorB")
                 bgColor = Color(red: r, green: g, blue: b)
             }
             
             let view = FrameView(meta: meta, coverImage: coverImage, currentTrackIndex: trackIndex, nextTrackIndex: nextTrackIndex, transitionProgress: transitionProgress, bgColor: bgColor, scale: scale)
+                .defaultAppStorage(defaults)
                 .frame(width: size.width, height: size.height)
             let renderer = ImageRenderer(content: view)
             renderer.scale = 1.0 // Real pixel size
