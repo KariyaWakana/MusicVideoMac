@@ -17,27 +17,41 @@ struct MetadataEditorView: View {
             HStack(spacing: 20) {
                 // Cover Image Picker
                 VStack(spacing: 10) {
-                    if let image = viewModel.coverImage {
-                        Image(nsImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 140, height: 140)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .shadow(radius: 2)
-                    } else {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.secondary.opacity(0.2))
-                            .frame(width: 140, height: 140)
-                            .overlay(
-                                VStack {
-                                    Image(systemName: "photo")
-                                        .font(.largeTitle)
-                                    Text("No Cover")
-                                        .font(.caption)
-                                        .padding(.top, 4)
+                    Group {
+                        if let image = viewModel.coverImage {
+                            Image(nsImage: image)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 140, height: 140)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .shadow(radius: 2)
+                        } else {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.secondary.opacity(0.2))
+                                .frame(width: 140, height: 140)
+                                .overlay(
+                                    VStack {
+                                        Image(systemName: "photo")
+                                            .font(.largeTitle)
+                                        Text("No Cover")
+                                            .font(.caption)
+                                            .padding(.top, 4)
+                                    }
+                                    .foregroundColor(.secondary)
+                                )
+                        }
+                    }
+                    .help("Right-click to Scan Document with iPhone")
+                    .importsItemProviders([.image]) { providers in
+                        guard let provider = providers.first else { return false }
+                        provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
+                            if let data = data, let image = NSImage(data: data) {
+                                DispatchQueue.main.async {
+                                    self.viewModel.coverImage = image
                                 }
-                                .foregroundColor(.secondary)
-                            )
+                            }
+                        }
+                        return true
                     }
                     
                     Button("Select Cover...") {
