@@ -9,6 +9,7 @@ struct SettingsView: View {
     @AppStorage("outputFormat") private var outputFormat: String = "mp4"
     @AppStorage("audioQuality") private var audioQuality: String = "AAC"
     @AppStorage("hardwareAcceleration") private var hardwareAcceleration: Bool = true
+    @AppStorage("allowDirectCDReading") private var allowDirectCDReading: Bool = false
     
     // Appearance Settings
     @AppStorage("layoutMode") private var layoutMode: String = "Left"
@@ -102,6 +103,12 @@ struct SettingsView: View {
                         Text("Dramatically speeds up rendering on Apple Silicon/Intel. Disable only if you experience glitches.")
                             .font(.caption).foregroundColor(.secondary)
                     } header: { Text("Performance").font(.headline) }
+                    
+                    Section {
+                        Toggle("Allow Direct CD Reading (Not Recommended)", isOn: $allowDirectCDReading)
+                        Text("Enables skipping the CD ripping process. Rendering directly from physical discs is extremely slow and can severely damage slot-loading optical drives (e.g. Apple SuperDrive) due to overheating or lock-ups.")
+                            .font(.caption).foregroundColor(.red)
+                    } header: { Text("Advanced Hardware").font(.headline) }
                 }
                 .formStyle(.grouped)
                 .padding(20)

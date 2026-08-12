@@ -285,7 +285,13 @@ class AppViewModel {
                     alert.messageText = "Audio CD Detected (Rip Required)"
                     alert.informativeText = "Please rip this CD to your local drive before continuing. Rendering video directly from a physical disc is extremely slow and can cause slot-loading drives (like Apple SuperDrive) to overheat or fail to eject if a crash occurs."
                     alert.addButton(withTitle: "Rip CD to Local Drive (Safe)")
-                    alert.addButton(withTitle: "Skip (Dangerous)")
+                    
+                    let allowDirectReading = UserDefaults.standard.bool(forKey: "allowDirectCDReading")
+                    if allowDirectReading {
+                        alert.addButton(withTitle: "Skip (Dangerous)")
+                    } else {
+                        alert.addButton(withTitle: "Cancel")
+                    }
                     
                     let response = alert.runModal()
                     if response == .alertFirstButtonReturn {
@@ -302,6 +308,17 @@ class AppViewModel {
                             }
                         }
                         return // Stop normal loading, let CDRipManager take over
+                    } else {
+                        // User clicked the second button
+                        if allowDirectReading {
+                            // User clicked "Skip (Dangerous)", proceed reading from CD
+                            // (Fall through to the rest of the function)
+                        } else {
+                            // User clicked "Cancel", abort entirely
+                            self.statusMessage = "CD Ripping cancelled."
+                            self.isProcessing = false
+                            return
+                        }
                     }
                 }
                 
