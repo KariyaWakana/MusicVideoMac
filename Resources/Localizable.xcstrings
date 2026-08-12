@@ -48,6 +48,9 @@
     "1080p (1920x1080)" : {
 
     },
+    "Advanced Hardware" : {
+
+    },
     "Album Artist" : {
 
     },
@@ -58,6 +61,9 @@
 
     },
     "Album Title" : {
+
+    },
+    "Allow Direct CD Reading" : {
 
     },
     "Appearance" : {
@@ -206,6 +212,9 @@
           }
         }
       }
+    },
+    "Enables skipping the CD ripping process. Rendering directly from physical discs is extremely slow and can severely damage slot-loading optical drives (e.g. Apple SuperDrive) due to overheating or lock-ups." : {
+
     },
     "Export" : {
 

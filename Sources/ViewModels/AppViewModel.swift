@@ -270,9 +270,43 @@ class AppViewModel {
         }
         
         Task.detached {
-            let result = await AudioScanner.scanForAudio(at: url, includeSubfolders: includeSubfolders)
+            let scanTask = Task {
+                return await AudioScanner.scanForAudio(at: url, includeSubfolders: includeSubfolders)
+            }
+            
+            // 8 seconds for CD auto-detect, 5 minutes for folder drag-and-drop
+            let timeoutNanos: UInt64 = (url == nil) ? 8_000_000_000 : 300_000_000_000
+            
+            typealias ScanResult = (tracks: [Track], directory: URL?, albumTitle: String?, albumArtist: String?, year: String?, genre: String?, embeddedArtwork: NSImage?)
+            
+            let result: ScanResult? = await withTaskGroup(of: ScanResult?.self) { group in
+                group.addTask {
+                    return await scanTask.value
+                }
+                
+                group.addTask {
+                    try? await Task.sleep(nanoseconds: timeoutNanos)
+                    return nil // Timeout
+                }
+                
+                let firstResult = await group.next()!
+                scanTask.cancel()
+                return firstResult
+            }
             
             await MainActor.run {
+                guard let result = result else {
+                    self.isProcessing = false
+                    self.statusMessage = "Ready to scan CDs or drop a folder."
+                    
+                    let alert = NSAlert()
+                    alert.messageText = "Optical Drive is Busy"
+                    alert.informativeText = "The optical drive is not responding. It may be locked by another application (such as XLD or Apple Music). Please wait for the other app to finish or quit it, then try again."
+                    alert.addButton(withTitle: "OK")
+                    alert.runModal()
+                    return
+                }
+                
                 if result.tracks.isEmpty {
                     self.statusMessage = "No audio files found."
                     self.isProcessing = false
@@ -376,11 +410,10 @@ class AppViewModel {
                         } else {
                             if self.coverImage == nil {
                                 self.statusMessage = "Preview ready (No cover found)."
-                                self.isProcessing = false
                             } else {
                                 self.statusMessage = "Preview ready (Using embedded cover)."
-                                self.isProcessing = false
                             }
+                            self.isProcessing = false
                         }
                     } else {
                         self.statusMessage = "Preview ready (Metadata search failed)."
