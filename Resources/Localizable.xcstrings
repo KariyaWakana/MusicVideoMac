@@ -48,6 +48,9 @@
     "1080p (1920x1080)" : {
 
     },
+    "Adjust Cover Crop" : {
+
+    },
     "Advanced Hardware" : {
 
     },
@@ -67,6 +70,9 @@
 
     },
     "Appearance" : {
+
+    },
+    "Apply Crop" : {
 
     },
     "Artist" : {
@@ -146,6 +152,9 @@
 
     },
     "Cover Scale" : {
+
+    },
+    "Crop Image" : {
 
     },
     "Custom Render Options" : {
@@ -342,6 +351,9 @@
     "No Cover" : {
 
     },
+    "No image selected" : {
+
+    },
     "None" : {
 
     },
@@ -378,7 +390,13 @@
     "Restore Default" : {
 
     },
+    "Right-click to Scan Document with iPhone" : {
+
+    },
     "Save Changes" : {
+
+    },
+    "Save Cover..." : {
 
     },
     "Save Current as Default" : {
@@ -433,6 +451,9 @@
           }
         }
       }
+    },
+    "Scroll or pinch to zoom. Drag to reposition." : {
+
     },
     "Select Cover..." : {
 

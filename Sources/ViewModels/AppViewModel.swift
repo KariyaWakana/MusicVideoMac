@@ -286,12 +286,18 @@ class AppViewModel {
                 }
                 
                 group.addTask {
-                    try? await Task.sleep(nanoseconds: timeoutNanos)
+                    let totalSeconds = Double(timeoutNanos) / 1_000_000_000.0
+                    let steps = Int(totalSeconds * 10) // 100ms steps
+                    for _ in 0..<steps {
+                        if Task.isCancelled { return nil }
+                        try? await Task.sleep(nanoseconds: 100_000_000)
+                    }
                     return nil // Timeout
                 }
                 
                 let firstResult = await group.next()!
                 scanTask.cancel()
+                group.cancelAll()
                 return firstResult
             }
             
