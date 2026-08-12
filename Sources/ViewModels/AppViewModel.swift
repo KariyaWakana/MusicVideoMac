@@ -7,6 +7,7 @@ import UniformTypeIdentifiers
 class AppViewModel {
     var meta = AlbumMetadata()
     var coverImage: NSImage? = nil
+    var imageToCrop: NSImage? = nil
     var searchTerm: String = ""
     var statusMessage: String = "Ready to scan CDs or drop a folder."
     var isProcessing: Bool = false

@@ -6,6 +6,7 @@ struct MetadataEditorView: View {
     @Bindable var viewModel: AppViewModel
     @Environment(\.undoManager) var undoManager
     @Environment(\.dismiss) var dismiss
+    @Environment(\.openWindow) private var openWindow
     @AppStorage("isCompilation") private var isCompilation: Bool = false
     
     var body: some View {
@@ -50,18 +51,18 @@ struct MetadataEditorView: View {
                             provider.loadDataRepresentation(forTypeIdentifier: UTType.pdf.identifier) { data, _ in
                                 if let data = data, let pdf = PDFDocument(data: data), let page = pdf.page(at: 0) {
                                     let imgRect = page.bounds(for: .mediaBox)
-                                    let image = page.thumbnail(of: imgRect.size, for: .mediaBox).squareCropped()
+                                    let image = page.thumbnail(of: imgRect.size, for: .mediaBox)
                                     DispatchQueue.main.async {
-                                        self.viewModel.coverImage = image
+                                        self.openCropper(with: image)
                                     }
                                 }
                             }
                             return true
                         } else if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
                             provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
-                                if let data = data, let image = NSImage(data: data)?.squareCropped() {
+                                if let data = data, let image = NSImage(data: data) {
                                     DispatchQueue.main.async {
-                                        self.viewModel.coverImage = image
+                                        self.openCropper(with: image)
                                     }
                                 }
                             }
@@ -174,13 +175,15 @@ struct MetadataEditorView: View {
         panel.begin { response in
             if response == .OK, let url = panel.url {
                 if let image = NSImage(contentsOf: url) {
-                    let oldImage = viewModel.coverImage
-                    let squareImage = image.squareCropped()
-                    viewModel.coverImage = squareImage
-                    viewModel.registerPropertyUndo(undoManager: undoManager, keyPath: \.coverImage, oldValue: oldImage, newValue: squareImage)
+                    openCropper(with: image)
                 }
             }
         }
+    }
+    
+    private func openCropper(with image: NSImage) {
+        viewModel.imageToCrop = image
+        openWindow(id: "ImageCropper")
     }
 }
 

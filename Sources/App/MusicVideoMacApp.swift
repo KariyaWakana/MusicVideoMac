@@ -26,6 +26,11 @@ struct MusicVideoMacApp: App {
                 .environment(viewModel)
         }
         
+        Window("Crop Image", id: "ImageCropper") {
+            ImageCropperView(viewModel: viewModel)
+                .environment(viewModel)
+        }
+        
         Settings {
             SettingsView()
                 .environment(viewModel)
