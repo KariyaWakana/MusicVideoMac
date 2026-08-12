@@ -213,9 +213,16 @@ struct ContentView: View {
                 }
             }
         }
-        .onDrop(of: [.fileURL], isTargeted: Bindable(viewModel).isHovering) { providers in
-            viewModel.handleDrop(providers: providers)
-            return true
+        .dropDestination(for: URL.self) { items, location in
+            if let url = items.first {
+                Task { @MainActor in
+                    viewModel.loadAlbum(from: url)
+                }
+                return true
+            }
+            return false
+        } isTargeted: { targeted in
+            viewModel.isHovering = targeted
         }
         .frame(minWidth: 800, minHeight: 600)
     }
