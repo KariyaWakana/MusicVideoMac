@@ -389,53 +389,50 @@ class AppViewModel {
                 self.statusMessage = "Found \(result.tracks.count) tracks. Fetching metadata..."
                 
                 MetadataFetcher.fetchMetadata(for: result.directory, searchTerm: self.searchTerm) { fetchedMeta in
+                    // Apply online metadata if available
                     if let fetchedMeta = fetchedMeta {
-                        // Prefer embedded metadata, fallback to fetched metadata (which falls back to folder parsing)
                         self.meta.title = result.albumTitle ?? fetchedMeta.title
                         self.meta.artist = result.albumArtist ?? fetchedMeta.artist
                         self.meta.year = result.year ?? fetchedMeta.year
                         self.meta.genre = result.genre ?? fetchedMeta.genre
-                        
-                        self.loadAlbumSettings()
-                        
-                        
-                        if let coverURL = fetchedMeta.coverURL, self.coverImage == nil {
-                            self.statusMessage = "Loading cover art..."
-                            if coverURL.isFileURL {
-                                if let img = NSImage(contentsOf: coverURL) {
-                                    self.coverImage = img
-                                    self.statusMessage = "Preview ready."
-                                    self.isProcessing = false
-                                } else {
-                                    self.statusMessage = "Failed to load local cover image."
-                                    self.isProcessing = false
-                                }
+                    }
+                    
+                    // ALWAYS load local user settings (.mv_settings.json) to override online/parsed metadata
+                    self.loadAlbumSettings()
+                    
+                    if let fetchedMeta = fetchedMeta, let coverURL = fetchedMeta.coverURL, self.coverImage == nil {
+                        self.statusMessage = "Loading cover art..."
+                        if coverURL.isFileURL {
+                            if let img = NSImage(contentsOf: coverURL) {
+                                self.coverImage = img
+                                self.statusMessage = "Preview ready."
+                                self.isProcessing = false
                             } else {
-                                URLSession.shared.dataTask(with: coverURL) { data, _, _ in
-                                    if let data = data, let img = NSImage(data: data) {
-                                        Task { @MainActor in
-                                            self.coverImage = img
-                                            self.statusMessage = "Preview ready."
-                                            self.isProcessing = false
-                                        }
-                                    } else {
-                                        Task { @MainActor in
-                                            self.statusMessage = "Failed to download cover."
-                                            self.isProcessing = false
-                                        }
-                                    }
-                                }.resume()
+                                self.statusMessage = "Failed to load local cover image."
+                                self.isProcessing = false
                             }
                         } else {
-                            if self.coverImage == nil {
-                                self.statusMessage = "Preview ready (No cover found)."
-                            } else {
-                                self.statusMessage = "Preview ready (Using embedded cover)."
-                            }
-                            self.isProcessing = false
+                            URLSession.shared.dataTask(with: coverURL) { data, _, _ in
+                                if let data = data, let img = NSImage(data: data) {
+                                    Task { @MainActor in
+                                        self.coverImage = img
+                                        self.statusMessage = "Preview ready."
+                                        self.isProcessing = false
+                                    }
+                                } else {
+                                    Task { @MainActor in
+                                        self.statusMessage = "Failed to download cover."
+                                        self.isProcessing = false
+                                    }
+                                }
+                            }.resume()
                         }
                     } else {
-                        self.statusMessage = "Preview ready (Metadata search failed)."
+                        if self.coverImage == nil {
+                            self.statusMessage = "Preview ready (No cover found)."
+                        } else {
+                            self.statusMessage = "Preview ready (Using embedded cover)."
+                        }
                         self.isProcessing = false
                     }
                 }
