@@ -31,6 +31,11 @@ struct MusicVideoMacApp: App {
                 .environment(viewModel)
         }
         
+        Window("Render Queue", id: "RenderQueue") {
+            RenderQueueView()
+                .environment(viewModel)
+        }
+        
         Settings {
             SettingsView()
                 .environment(viewModel)

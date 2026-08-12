@@ -151,7 +151,8 @@ struct MetadataEditorView: View {
             
             HStack {
                 Spacer()
-                Button("Save Changes") {
+                Button("Save to Album folder") {
+                    viewModel.saveAlbumSettings()
                     dismiss()
                 }
                 .keyboardShortcut(.defaultAction)

@@ -139,34 +139,50 @@ struct ContentView: View {
                             
                             Divider().padding(.horizontal, 40)
                             
-                            // Native Tracklist Table
-                            Table(viewModel.meta.tracks) {
-                                TableColumn("#") { track in
-                                    if let index = viewModel.meta.tracks.firstIndex(where: { $0.id == track.id }) {
+                            // Dynamic Tracklist Layout (Fixes Table height truncation)
+                            VStack(spacing: 0) {
+                                // Header Row
+                                HStack {
+                                    Text("#").frame(width: 30, alignment: .leading)
+                                    Text("Title").frame(minWidth: 100, idealWidth: 200, maxWidth: .infinity, alignment: .leading)
+                                    Text("Artist").frame(minWidth: 80, idealWidth: 150, maxWidth: .infinity, alignment: .leading)
+                                }
+                                .font(.subheadline.bold())
+                                .foregroundColor(.secondary)
+                                .padding(.vertical, 8)
+                                .padding(.horizontal, 10)
+                                
+                                Divider()
+                                
+                                // Track Rows
+                                ForEach(Array(viewModel.meta.tracks.enumerated()), id: \.element.id) { index, track in
+                                    HStack {
                                         Text(String(format: "%02d", index + 1))
-                                            .foregroundStyle(.secondary)
+                                            .frame(width: 30, alignment: .leading)
+                                            .foregroundColor(.secondary)
+                                        
+                                        Text(track.title)
+                                            .font(.system(size: 14))
+                                            .frame(minWidth: 100, idealWidth: 200, maxWidth: .infinity, alignment: .leading)
+                                        
+                                        if let artist = track.artist, !artist.isEmpty, artist != viewModel.meta.artist {
+                                            Text(artist)
+                                                .font(.system(size: 13))
+                                                .foregroundColor(.secondary)
+                                                .frame(minWidth: 80, idealWidth: 150, maxWidth: .infinity, alignment: .leading)
+                                        } else {
+                                            Spacer().frame(minWidth: 80, idealWidth: 150, maxWidth: .infinity, alignment: .leading)
+                                        }
                                     }
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 10)
+                                    .background(index % 2 == 0 ? Color(NSColor.alternatingContentBackgroundColors[0]) : Color(NSColor.alternatingContentBackgroundColors[1]))
                                 }
-                                .width(30)
-                                
-                                TableColumn("Title") { track in
-                                    Text(track.title)
-                                        .font(.system(size: 14))
-                                }
-                                .width(min: 100, ideal: 200)
-                                
-                                TableColumn("Artist") { track in
-                                    if let artist = track.artist, !artist.isEmpty, artist != viewModel.meta.artist {
-                                        Text(artist)
-                                            .font(.system(size: 13))
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                .width(min: 80, ideal: 150)
                             }
-                            .frame(minHeight: 400)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.2), lineWidth: 1))
                             .padding(.horizontal, 40)
-                            .scrollDisabled(true) // Disable table scrolling to use outer ScrollView
+                            .padding(.bottom, 40)
                         }
                     }
                 }
@@ -175,6 +191,15 @@ struct ContentView: View {
             .searchable(text: Bindable(viewModel).searchTerm, prompt: "Override iTunes Search...")
             .autocorrectionDisabled(true)
             .toolbar {
+                ToolbarItem(placement: .automatic) {
+                    Button(action: {
+                        openWindow(id: "RenderQueue")
+                    }) {
+                        Label("Render Queue", systemImage: "list.and.film")
+                    }
+                    .help("View active and queued rendering jobs")
+                }
+                
                 ToolbarItem(placement: .automatic) {
                     Button(action: {
                         viewModel.saveAlbumSettings()

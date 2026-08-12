@@ -442,32 +442,8 @@ class AppViewModel {
             if response == .OK, let outputURL = panel.url {
                 Task { @MainActor in
                     self.saveAlbumSettings()
-                    self.isProcessing = true
-                    self.statusMessage = "Rendering layout frames..."
-                }
-                
-                Task.detached {
-                    await MainActor.run {
-                        self.statusMessage = "Assembling video with Native VFR Engine... (Extremely Fast!)"
-                    }
-                    
-                    NativeVideoAssembler.assemble(meta: await self.meta, coverImage: await self.coverImage, resolution: await self.videoResolution, outputURL: outputURL, progress: { msg, percent in
-                        Task { @MainActor in
-                            self.statusMessage = msg
-                            self.renderProgress = percent
-                        }
-                    }) { success in
-                        Task { @MainActor in
-                            self.isProcessing = false
-                            self.renderProgress = nil
-                            if success {
-                                self.statusMessage = "Success! Saved to \(outputURL.lastPathComponent)."
-                                NSWorkspace.shared.activateFileViewerSelecting([outputURL])
-                            } else {
-                                self.statusMessage = "Failed to render video."
-                            }
-                        }
-                    }
+                    RenderQueueManager.shared.enqueue(meta: self.meta, coverImage: self.coverImage, resolution: self.videoResolution, outputURL: outputURL)
+                    self.statusMessage = "Video added to Render Queue."
                 }
             }
         }
@@ -479,6 +455,13 @@ class AppViewModel {
         guard let data = try? Data(contentsOf: settingsURL),
               let settings = try? JSONDecoder().decode(AlbumSettingsData.self, from: data) else {
             return
+        }
+        
+        // Check for saved cover
+        let coverURL = dir.appendingPathComponent("cover.png")
+        if let coverData = try? Data(contentsOf: coverURL), let loadedCover = NSImage(data: coverData) {
+            self.coverImage = loadedCover
+            print("Loaded saved cover image from \(coverURL)")
         }
         
         // Apply Metadata
@@ -575,6 +558,7 @@ class AppViewModel {
         settings.textB = defaults.double(forKey: "customTextColorB")
         
         let settingsURL = dir.appendingPathComponent(".mv_settings.json")
+        let coverURL = dir.appendingPathComponent("cover.png")
         
         let hasAccess = activeSecurityScopedURL?.startAccessingSecurityScopedResource() ?? false
         defer {
@@ -585,8 +569,16 @@ class AppViewModel {
             let data = try JSONEncoder().encode(settings)
             try data.write(to: settingsURL, options: .atomic)
             print("Successfully saved settings to \(settingsURL)")
+            
+            if let image = self.coverImage,
+               let tiffData = image.tiffRepresentation,
+               let bitmapImage = NSBitmapImageRep(data: tiffData),
+               let pngData = bitmapImage.representation(using: .png, properties: [:]) {
+                try pngData.write(to: coverURL, options: .atomic)
+                print("Successfully saved cover image to \(coverURL)")
+            }
         } catch {
-            print("Failed to save album settings: \(error)")
+            print("Failed to save album settings or cover: \(error)")
         }
     }
     

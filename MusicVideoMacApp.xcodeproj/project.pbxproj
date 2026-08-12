@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		736170F108B749F28DBB3081 /* RenderQueueView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A463E1BE28EC4541B1773047 /* RenderQueueView.swift */; };
+		BC4731A7B9164AF1B8D53CF6 /* RenderQueueManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F7783F355894FB2A7064437 /* RenderQueueManager.swift */; };
 		989F3BA193644CED8E6F19E6 /* ImageCropperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B05F8077C1F94248AC122D2D /* ImageCropperView.swift */; };
 		153912AA70077D3F09021C02 /* AudioScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1360D63A0C8E26D2D0732942 /* AudioScanner.swift */; };
 		18C5FF565A1C8C78D7B2476E /* MetadataFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0B1724D5A3558E820FDE0C9 /* MetadataFetcher.swift */; };
@@ -29,6 +31,8 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		A463E1BE28EC4541B1773047 /* RenderQueueView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderQueueView.swift; sourceTree = "<group>"; };
+		6F7783F355894FB2A7064437 /* RenderQueueManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RenderQueueManager.swift; sourceTree = "<group>"; };
 		B05F8077C1F94248AC122D2D /* ImageCropperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageCropperView.swift; sourceTree = "<group>"; };
 		1360D63A0C8E26D2D0732942 /* AudioScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioScanner.swift; sourceTree = "<group>"; };
 		28C020F938194C673E7148F7 /* AudioTagReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTagReader.swift; sourceTree = "<group>"; };
@@ -88,6 +92,7 @@
 			isa = PBXGroup;
 			children = (
 				677B2EF0178A10E23C3B7413 /* AppViewModel.swift */,
+				6F7783F355894FB2A7064437 /* RenderQueueManager.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -172,6 +177,7 @@
 				D7ED906324AB4343E74ED59D /* MetadataEditorView.swift */,
 				B4C29C174E26DB7A5CACAD5D /* RenderPreviewView.swift */,
 				6A4B0DEA3BF993E45161C37B /* SettingsView.swift */,
+				A463E1BE28EC4541B1773047 /* RenderQueueView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -275,6 +281,8 @@
 				85F436D6198FBA4F56008D4B /* RenderPreviewView.swift in Sources */,
 				8EBD40AB5F6A3B2D56E74840 /* SettingsView.swift in Sources */,
 				989F3BA193644CED8E6F19E6 /* ImageCropperView.swift in Sources */,
+				BC4731A7B9164AF1B8D53CF6 /* RenderQueueManager.swift in Sources */,
+				736170F108B749F28DBB3081 /* RenderQueueView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
