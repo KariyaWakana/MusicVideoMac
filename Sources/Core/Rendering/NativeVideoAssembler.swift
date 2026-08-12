@@ -304,8 +304,7 @@ class NativeVideoAssembler {
                 bgColor = Color(red: r, green: g, blue: b)
             }
             
-            let view = FrameView(meta: meta, coverImage: coverImage, currentTrackIndex: trackIndex, nextTrackIndex: nextTrackIndex, transitionProgress: transitionProgress, bgColor: bgColor, scale: scale)
-                .defaultAppStorage(defaults)
+            let view = FrameView(meta: meta, coverImage: coverImage, currentTrackIndex: trackIndex, nextTrackIndex: nextTrackIndex, transitionProgress: transitionProgress, bgColor: bgColor, scale: scale, config: FrameViewConfig(defaults: defaults))
                 .frame(width: size.width, height: size.height)
             let renderer = ImageRenderer(content: view)
             renderer.scale = 1.0 // Real pixel size

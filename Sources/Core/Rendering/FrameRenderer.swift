@@ -43,7 +43,7 @@ class FrameRenderer {
         let scale: CGFloat = is4K ? 2.0 : (is480p ? (480.0 / 1080.0) : 1.0)
         
         for (index, _) in meta.tracks.enumerated() {
-            let view = FrameView(meta: meta, coverImage: coverImage, currentTrackIndex: index, bgColor: bgColor, scale: scale)
+            let view = FrameView(meta: meta, coverImage: coverImage, currentTrackIndex: index, bgColor: bgColor, scale: scale, config: FrameViewConfig())
                 .frame(width: width, height: height)
             
             DispatchQueue.main.sync {
@@ -67,6 +67,48 @@ class FrameRenderer {
     }
 }
 
+struct FrameViewConfig {
+    var layoutMode: String
+    var verticalAlignment: String
+    var metadataPosition: String
+    var isCompilation: Bool
+    var trackNumberStyle: Int
+    var coverScale: Double
+    var fontFamily: String
+    var customFontName: String
+    var titleFontSize: Double
+    var subtitleFontSize: Double
+    var trackFontSize: Double
+    var useCustomColors: Bool
+    var bgR: Double
+    var bgG: Double
+    var bgB: Double
+    var textR: Double
+    var textG: Double
+    var textB: Double
+    
+    init(defaults: UserDefaults = .standard) {
+        layoutMode = defaults.string(forKey: "layoutMode") ?? "Left"
+        verticalAlignment = defaults.string(forKey: "verticalAlignment") ?? "Center"
+        metadataPosition = defaults.string(forKey: "metadataPosition") ?? "Top"
+        isCompilation = defaults.bool(forKey: "isCompilation")
+        trackNumberStyle = defaults.integer(forKey: "trackNumberStyle")
+        coverScale = defaults.object(forKey: "coverScale") != nil ? defaults.double(forKey: "coverScale") : 1.0
+        fontFamily = defaults.string(forKey: "fontFamily") ?? "Lexend"
+        customFontName = defaults.string(forKey: "customFontName") ?? ""
+        titleFontSize = defaults.object(forKey: "titleFontSize") != nil ? defaults.double(forKey: "titleFontSize") : 60.0
+        subtitleFontSize = defaults.object(forKey: "subtitleFontSize") != nil ? defaults.double(forKey: "subtitleFontSize") : 40.0
+        trackFontSize = defaults.object(forKey: "trackFontSize") != nil ? defaults.double(forKey: "trackFontSize") : 35.0
+        useCustomColors = defaults.bool(forKey: "useCustomColors")
+        bgR = defaults.object(forKey: "customBgColorR") != nil ? defaults.double(forKey: "customBgColorR") : 0.2
+        bgG = defaults.object(forKey: "customBgColorG") != nil ? defaults.double(forKey: "customBgColorG") : 0.2
+        bgB = defaults.object(forKey: "customBgColorB") != nil ? defaults.double(forKey: "customBgColorB") : 0.2
+        textR = defaults.object(forKey: "customTextColorR") != nil ? defaults.double(forKey: "customTextColorR") : 1.0
+        textG = defaults.object(forKey: "customTextColorG") != nil ? defaults.double(forKey: "customTextColorG") : 1.0
+        textB = defaults.object(forKey: "customTextColorB") != nil ? defaults.double(forKey: "customTextColorB") : 1.0
+    }
+}
+
 // The SwiftUI View that represents a single frame of the video
 struct FrameView: View {
     var meta: AlbumMetadata
@@ -76,37 +118,17 @@ struct FrameView: View {
     var transitionProgress: Double = 0.0
     var bgColor: Color
     var scale: CGFloat
-    
-    @AppStorage("layoutMode") private var layoutMode: String = "Left"
-    @AppStorage("verticalAlignment") private var verticalAlignment: String = "Center"
-    @AppStorage("metadataPosition") private var metadataPosition: String = "Top"
-    @AppStorage("isCompilation") private var isCompilation: Bool = false
-    @AppStorage("trackNumberStyle") private var trackNumberStyle: Int = 0
-    @AppStorage("coverScale") private var coverScale: Double = 1.0
-    @AppStorage("fontFamily") private var fontFamily: String = "Lexend"
-    @AppStorage("customFontName") private var customFontName: String = ""
-    @AppStorage("titleFontSize") private var titleFontSize: Double = 60.0
-    @AppStorage("subtitleFontSize") private var subtitleFontSize: Double = 40.0
-    @AppStorage("trackFontSize") private var trackFontSize: Double = 35.0
-    
-    @AppStorage("useCustomColors") private var useCustomColors: Bool = false
-    @AppStorage("customBgColorR") private var bgR: Double = 0.2
-    @AppStorage("customBgColorG") private var bgG: Double = 0.2
-    @AppStorage("customBgColorB") private var bgB: Double = 0.2
-    
-    @AppStorage("customTextColorR") private var textR: Double = 1.0
-    @AppStorage("customTextColorG") private var textG: Double = 1.0
-    @AppStorage("customTextColorB") private var textB: Double = 1.0
+    var config: FrameViewConfig
     
     var effectiveBgColor: Color {
-        if useCustomColors {
-            return Color(red: bgR, green: bgG, blue: bgB)
+        if config.useCustomColors {
+            return Color(red: config.bgR, green: config.bgG, blue: config.bgB)
         }
         return bgColor
     }
     
     private var effectiveTextColor: Color {
-        useCustomColors ? Color(red: textR, green: textG, blue: textB) : Color(NSColor.labelColor)
+        config.useCustomColors ? Color(red: config.textR, green: config.textG, blue: config.textB) : Color(NSColor.labelColor)
     }
     
     private func intToRoman(_ number: Int) -> String {
@@ -130,7 +152,7 @@ struct FrameView: View {
         let baseTitle = track.title
         let trackIndex = index + 1
         var safeTitle = ""
-        switch trackNumberStyle {
+        switch config.trackNumberStyle {
         case 1: safeTitle = String(format: "%02d. %@", trackIndex, baseTitle)
         case 2: safeTitle = "\(trackIndex). \(baseTitle)"
         case 3: safeTitle = "\(intToRoman(trackIndex)) \(baseTitle)"
@@ -145,7 +167,7 @@ struct FrameView: View {
     }
     
     private func formattedArtistSuffix(for track: Track) -> String {
-        let shouldShowArtist = (isCompilation && track.artist != nil) || (!isCompilation && track.artist != nil && !(track.artist?.isEmpty ?? true) && track.artist != meta.artist)
+        let shouldShowArtist = (config.isCompilation && track.artist != nil) || (!config.isCompilation && track.artist != nil && !(track.artist?.isEmpty ?? true) && track.artist != meta.artist)
         if shouldShowArtist, let artistStr = track.artist {
             return " - " + artistStr
         }
@@ -153,7 +175,7 @@ struct FrameView: View {
     }
     
     private func effectiveFontFamilyName() -> String {
-        fontFamily == "Custom" ? (customFontName.isEmpty ? "System" : customFontName) : fontFamily
+        config.fontFamily == "Custom" ? (config.customFontName.isEmpty ? "System" : config.customFontName) : config.fontFamily
     }
     
     private var cjkLanguageCode: String? {
@@ -219,7 +241,7 @@ struct FrameView: View {
     }
     
     var alignment: VerticalAlignment {
-        switch verticalAlignment {
+        switch config.verticalAlignment {
         case "Top": return .top
         case "Bottom": return .bottom
         case "Center", "Split": return .center // "Split" pushes internally via Spacer, so the container aligns to center
@@ -231,9 +253,9 @@ struct FrameView: View {
         ZStack {
             effectiveBgColor.edgesIgnoringSafeArea(.all)
             
-            if layoutMode == "Center" {
+            if config.layoutMode == "Center" {
                 VStack(spacing: 0) {
-                    if verticalAlignment == "Bottom" || verticalAlignment == "Center" { Spacer() }
+                    if config.verticalAlignment == "Bottom" || config.verticalAlignment == "Center" { Spacer() }
                     
                     HStack(alignment: .center, spacing: 40 * scale) {
                         
@@ -243,7 +265,7 @@ struct FrameView: View {
                         
                         // Center Cover + Meta (roughly 1/3 width)
                         VStack(spacing: 40 * scale) {
-                            if metadataPosition == "Top" {
+                            if config.metadataPosition == "Top" {
                                 metadataBlock
                             }
                             
@@ -251,20 +273,20 @@ struct FrameView: View {
                                 Image(nsImage: cover)
                                     .resizable()
                                     .aspectRatio(contentMode: .fit)
-                                    .frame(width: 600 * scale * coverScale, height: 600 * scale * coverScale)
+                                    .frame(width: 600 * scale * config.coverScale, height: 600 * scale * config.coverScale)
                                     .shadow(color: .black.opacity(0.6), radius: 15 * scale, x: 0, y: 15 * scale)
                             } else {
                                 Rectangle()
                                     .fill(Color.gray)
-                                    .frame(width: 600 * scale * coverScale, height: 600 * scale * coverScale)
+                                    .frame(width: 600 * scale * config.coverScale, height: 600 * scale * config.coverScale)
                                     .shadow(color: .black.opacity(0.6), radius: 15 * scale, x: 0, y: 15 * scale)
                             }
                             
-                            if metadataPosition != "Top" {
+                            if config.metadataPosition != "Top" {
                                 metadataBlock
                             }
                         }
-                        .frame(width: 600 * scale * max(1.0, coverScale)) // stable center width based on cover size
+                        .frame(width: 600 * scale * max(1.0, config.coverScale)) // stable center width based on cover size
                         
                         // Right Tracks (roughly 1/3 width)
                         trackListBlock(startIndex: 0, endIndex: -1, isCenter: true, forceRight: true)
@@ -272,12 +294,12 @@ struct FrameView: View {
                     }
                     .padding(.horizontal, 60 * scale)
                     
-                    if verticalAlignment == "Top" || verticalAlignment == "Center" { Spacer() }
+                    if config.verticalAlignment == "Top" || config.verticalAlignment == "Center" { Spacer() }
                 }
                 .padding(.vertical, 60 * scale)
             } else {
                 HStack(alignment: alignment, spacing: 80 * scale) {
-                    if layoutMode == "Right" {
+                    if config.layoutMode == "Right" {
                         textContent.frame(maxWidth: .infinity, alignment: .leading)
                         coverContent
                     } else {
@@ -296,17 +318,17 @@ struct FrameView: View {
     
     @ViewBuilder
     var metadataBlock: some View {
-        let isCenter = layoutMode == "Center"
+        let isCenter = config.layoutMode == "Center"
         VStack(alignment: isCenter ? .center : .leading, spacing: 10 * scale) {
             Text(meta.title)
-                .font(.custom(effectiveFontFamilyName(), size: CGFloat(titleFontSize) * scale).weight(.bold))
+                .font(.custom(effectiveFontFamilyName(), size: CGFloat(config.titleFontSize) * scale).weight(.bold))
                 .foregroundColor(effectiveTextColor)
                 .lineLimit(2)
                 .multilineTextAlignment(isCenter ? .center : .leading)
             
-            let displayArtist = isCompilation ? "Various Artists" : meta.artist
+            let displayArtist = config.isCompilation ? "Various Artists" : meta.artist
             Text("\(displayArtist) • \(meta.year) • \(meta.genre)")
-                .font(.custom(effectiveFontFamilyName(), size: CGFloat(subtitleFontSize) * scale).weight(.medium))
+                .font(.custom(effectiveFontFamilyName(), size: CGFloat(config.subtitleFontSize) * scale).weight(.medium))
                 .foregroundColor(effectiveTextColor.opacity(0.7))
         }
     }
@@ -317,7 +339,7 @@ struct FrameView: View {
             Image(nsImage: cover)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
-                .frame(width: 800 * scale * coverScale, height: 800 * scale * coverScale)
+                .frame(width: 800 * scale * config.coverScale, height: 800 * scale * config.coverScale)
                 .clipShape(RoundedRectangle(cornerRadius: 16 * scale))
                 .overlay(
                     RoundedRectangle(cornerRadius: 16 * scale)
@@ -335,7 +357,7 @@ struct FrameView: View {
         } else {
             Rectangle()
                 .fill(Color.gray)
-                .frame(width: 800 * scale * coverScale, height: 800 * scale * coverScale)
+                .frame(width: 800 * scale * config.coverScale, height: 800 * scale * config.coverScale)
                 .clipShape(RoundedRectangle(cornerRadius: 16 * scale))
                 .shadow(color: .black.opacity(0.3), radius: 3 * scale, x: 0, y: 2 * scale)
                 .shadow(color: .black.opacity(0.1), radius: 40 * scale, x: 0, y: 25 * scale)
@@ -345,13 +367,13 @@ struct FrameView: View {
     @ViewBuilder
     var textContent: some View {
         VStack(alignment: .leading, spacing: 30 * scale) {
-            if metadataPosition == "Top" {
+            if config.metadataPosition == "Top" {
                 metadataBlock
-                if verticalAlignment == "Split" { Spacer() }
+                if config.verticalAlignment == "Split" { Spacer() }
                 trackListBlock(startIndex: 0, endIndex: -1, isCenter: false)
             } else {
                 trackListBlock(startIndex: 0, endIndex: -1, isCenter: false)
-                if verticalAlignment == "Split" { Spacer() }
+                if config.verticalAlignment == "Split" { Spacer() }
                 metadataBlock
             }
         }
@@ -423,8 +445,8 @@ struct FrameView: View {
             KeynoteTransitionText(
                 text: displayTitle,
                 transitionProgress: rawProgress,
-                regularFont: dynamicNSFont(size: CGFloat(trackFontSize * 1.2) * scale, weight: 400.0),
-                boldFont: dynamicNSFont(size: CGFloat(trackFontSize * 1.2) * scale, weight: 700.0),
+                regularFont: dynamicNSFont(size: CGFloat(config.trackFontSize * 1.2) * scale, weight: 400.0),
+                boldFont: dynamicNSFont(size: CGFloat(config.trackFontSize * 1.2) * scale, weight: 700.0),
                 color: effectiveTextColor.opacity(style.opacity)
             )
             
@@ -432,8 +454,8 @@ struct FrameView: View {
                 KeynoteTransitionText(
                     text: artistSuffix,
                     transitionProgress: rawProgress,
-                    regularFont: dynamicNSFont(size: CGFloat(trackFontSize * 0.8) * scale, weight: 400.0),
-                    boldFont: dynamicNSFont(size: CGFloat(trackFontSize * 0.8) * scale, weight: 700.0),
+                    regularFont: dynamicNSFont(size: CGFloat(config.trackFontSize * 0.8) * scale, weight: 400.0),
+                    boldFont: dynamicNSFont(size: CGFloat(config.trackFontSize * 0.8) * scale, weight: 700.0),
                     color: effectiveTextColor.opacity(style.opacity * 0.8)
                 )
             }
@@ -552,5 +574,43 @@ struct KeynoteTransitionText: View {
             }
         }
         return result
+    }
+}
+
+struct LiveFrameView: View {
+    var meta: AlbumMetadata
+    var coverImage: NSImage?
+    var currentTrackIndex: Int
+    var bgColor: Color
+    var scale: CGFloat
+    
+    @AppStorage("layoutMode") private var dummy1 = ""
+    @AppStorage("verticalAlignment") private var dummy2 = ""
+    @AppStorage("metadataPosition") private var dummy3 = ""
+    @AppStorage("isCompilation") private var dummy4 = false
+    @AppStorage("trackNumberStyle") private var dummy5 = 0
+    @AppStorage("coverScale") private var dummy6 = 1.0
+    @AppStorage("fontFamily") private var dummy7 = ""
+    @AppStorage("customFontName") private var dummy8 = ""
+    @AppStorage("titleFontSize") private var dummy9 = 60.0
+    @AppStorage("subtitleFontSize") private var dummy10 = 40.0
+    @AppStorage("trackFontSize") private var dummy11 = 35.0
+    @AppStorage("useCustomColors") private var dummy12 = false
+    @AppStorage("customBgColorR") private var dummy13 = 0.0
+    @AppStorage("customBgColorG") private var dummy14 = 0.0
+    @AppStorage("customBgColorB") private var dummy15 = 0.0
+    @AppStorage("customTextColorR") private var dummy16 = 0.0
+    @AppStorage("customTextColorG") private var dummy17 = 0.0
+    @AppStorage("customTextColorB") private var dummy18 = 0.0
+    
+    var body: some View {
+        FrameView(
+            meta: meta,
+            coverImage: coverImage,
+            currentTrackIndex: currentTrackIndex,
+            bgColor: bgColor,
+            scale: scale,
+            config: FrameViewConfig(defaults: .standard)
+        )
     }
 }

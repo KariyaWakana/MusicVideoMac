@@ -32,7 +32,7 @@ struct RenderPreviewView: View {
                         let scaleByHeight = availableHeight / 1080.0
                         let scale = min(scaleByWidth, scaleByHeight)
                         
-                        FrameView(meta: viewModel.meta, coverImage: viewModel.coverImage, currentTrackIndex: 0, bgColor: Color(NSColor.controlBackgroundColor), scale: scale)
+                        LiveFrameView(meta: viewModel.meta, coverImage: viewModel.coverImage, currentTrackIndex: 0, bgColor: Color(NSColor.controlBackgroundColor), scale: scale)
                             .frame(width: 1920 * scale, height: 1080 * scale)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                             .shadow(color: .black.opacity(0.3), radius: 15, x: 0, y: 10)

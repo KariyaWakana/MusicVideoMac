@@ -227,14 +227,26 @@ class AppViewModel {
     
     func handleDrop(providers: [NSItemProvider]) {
         guard let provider = providers.first else { return }
-        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-            if let url = item as? URL {
-                Task { @MainActor in
-                    self.loadAlbum(from: url)
+        
+        if provider.canLoadObject(ofClass: URL.self) {
+            _ = provider.loadObject(ofClass: URL.self) { item, error in
+                if let url = item {
+                    Task { @MainActor in
+                        self.loadAlbum(from: url)
+                    }
                 }
-            } else if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
-                Task { @MainActor in
-                    self.loadAlbum(from: url)
+            }
+        } else {
+            // Fallback for older dragging sources
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                if let url = item as? URL {
+                    Task { @MainActor in
+                        self.loadAlbum(from: url)
+                    }
+                } else if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
+                    Task { @MainActor in
+                        self.loadAlbum(from: url)
+                    }
                 }
             }
         }

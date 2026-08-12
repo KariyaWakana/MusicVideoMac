@@ -121,7 +121,7 @@ struct SettingsView: View {
             VStack(spacing: 0) {
                 // ANCHORED LIVE PREVIEW
                 let scale: CGFloat = 0.22 // Slightly larger since it has its own space
-                FrameView(meta: previewMeta, coverImage: previewCover, currentTrackIndex: 0, bgColor: Color(NSColor.controlBackgroundColor), scale: scale)
+                LiveFrameView(meta: previewMeta, coverImage: previewCover, currentTrackIndex: 0, bgColor: Color(NSColor.controlBackgroundColor), scale: scale)
                     .frame(width: 1920 * scale, height: 1080 * scale)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .shadow(radius: 8)
