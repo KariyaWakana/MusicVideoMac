@@ -282,10 +282,10 @@ class AppViewModel {
                 // CD Ripping Intercept
                 if let dir = result.directory, dir.path.hasPrefix("/Volumes/") && result.tracks.first?.filePath.lowercased().hasSuffix("aiff") == true {
                     let alert = NSAlert()
-                    alert.messageText = "Audio CD Detected"
-                    alert.informativeText = "Would you like to rip this CD to your local drive before continuing? This is highly recommended to prevent stuttering, slow rendering, and excessive optical drive wear."
-                    alert.addButton(withTitle: "Rip CD (Recommended)")
-                    alert.addButton(withTitle: "Skip (Read from Disc)")
+                    alert.messageText = "Audio CD Detected (Rip Required)"
+                    alert.informativeText = "Please rip this CD to your local drive before continuing. Rendering video directly from a physical disc is extremely slow and can cause slot-loading drives (like Apple SuperDrive) to overheat or fail to eject if a crash occurs."
+                    alert.addButton(withTitle: "Rip CD to Local Drive (Safe)")
+                    alert.addButton(withTitle: "Skip (Dangerous)")
                     
                     let response = alert.runModal()
                     if response == .alertFirstButtonReturn {

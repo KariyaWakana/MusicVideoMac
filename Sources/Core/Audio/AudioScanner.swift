@@ -393,9 +393,18 @@ class CDRipManager {
                 // Continue to next file
             }
         }
-        
         await MainActor.run {
-            progress("CD Rip Complete!", 1.0)
+            progress("CD Rip Complete! Ejecting disc...", 1.0)
+        }
+        
+        // Eject the CD to prevent slot-loading drives from getting stuck
+        // We use NSWorkspace unmountAndEjectDevice
+        if let volumeURL = files.first?.deletingLastPathComponent() {
+            do {
+                try NSWorkspace.shared.unmountAndEjectDevice(at: volumeURL)
+            } catch {
+                print("Failed to eject CD: \(error)")
+            }
         }
         
         completion(targetDir)

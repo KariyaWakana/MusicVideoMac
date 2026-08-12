@@ -69,6 +69,15 @@
     "Artist/Date may be truncated" : {
 
     },
+    "Audio Profile" : {
+
+    },
+    "Audio Quality:" : {
+
+    },
+    "Audio Settings" : {
+
+    },
     "Auto (System Default)" : {
 
     },
@@ -265,6 +274,12 @@
     "Live Preview" : {
 
     },
+    "Lossless (Passthrough)" : {
+
+    },
+    "Lossless requires .mov format. Original audio bitstream will be copied directly." : {
+
+    },
     "MP4 (.mp4)" : {
 
     },
@@ -442,6 +457,9 @@
 
     },
     "Split (Space Between)" : {
+
+    },
+    "Standard (AAC)" : {
 
     },
     "System (San Francisco)" : {
