@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import PDFKit
 
 struct MetadataEditorView: View {
     @Bindable var viewModel: AppViewModel
@@ -42,16 +43,31 @@ struct MetadataEditorView: View {
                         }
                     }
                     .help("Right-click to Scan Document with iPhone")
-                    .importsItemProviders([.image]) { providers in
+                    .importsItemProviders([.image, .pdf]) { providers in
                         guard let provider = providers.first else { return false }
-                        provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
-                            if let data = data, let image = NSImage(data: data) {
-                                DispatchQueue.main.async {
-                                    self.viewModel.coverImage = image
+                        
+                        if provider.hasItemConformingToTypeIdentifier(UTType.pdf.identifier) {
+                            provider.loadDataRepresentation(forTypeIdentifier: UTType.pdf.identifier) { data, _ in
+                                if let data = data, let pdf = PDFDocument(data: data), let page = pdf.page(at: 0) {
+                                    let imgRect = page.bounds(for: .mediaBox)
+                                    let image = page.thumbnail(of: imgRect.size, for: .mediaBox)
+                                    DispatchQueue.main.async {
+                                        self.viewModel.coverImage = image
+                                    }
                                 }
                             }
+                            return true
+                        } else if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
+                            provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
+                                if let data = data, let image = NSImage(data: data) {
+                                    DispatchQueue.main.async {
+                                        self.viewModel.coverImage = image
+                                    }
+                                }
+                            }
+                            return true
                         }
-                        return true
+                        return false
                     }
                     
                     Button("Select Cover...") {
