@@ -87,6 +87,27 @@ struct FrameViewConfig {
     var textG: Double
     var textB: Double
     
+    init(layoutMode: String, verticalAlignment: String, metadataPosition: String, isCompilation: Bool, trackNumberStyle: Int, coverScale: Double, fontFamily: String, customFontName: String, titleFontSize: Double, subtitleFontSize: Double, trackFontSize: Double, useCustomColors: Bool, bgR: Double, bgG: Double, bgB: Double, textR: Double, textG: Double, textB: Double) {
+        self.layoutMode = layoutMode
+        self.verticalAlignment = verticalAlignment
+        self.metadataPosition = metadataPosition
+        self.isCompilation = isCompilation
+        self.trackNumberStyle = trackNumberStyle
+        self.coverScale = coverScale
+        self.fontFamily = fontFamily
+        self.customFontName = customFontName
+        self.titleFontSize = titleFontSize
+        self.subtitleFontSize = subtitleFontSize
+        self.trackFontSize = trackFontSize
+        self.useCustomColors = useCustomColors
+        self.bgR = bgR
+        self.bgG = bgG
+        self.bgB = bgB
+        self.textR = textR
+        self.textG = textG
+        self.textB = textB
+    }
+    
     init(defaults: UserDefaults = .standard) {
         layoutMode = defaults.string(forKey: "layoutMode") ?? "Left"
         verticalAlignment = defaults.string(forKey: "verticalAlignment") ?? "Center"
@@ -600,17 +621,38 @@ struct LiveFrameView: View {
     @AppStorage("customBgColorG") private var dummy14 = 0.0
     @AppStorage("customBgColorB") private var dummy15 = 0.0
     @AppStorage("customTextColorR") private var dummy16 = 0.0
-    @AppStorage("customTextColorG") private var dummy17 = 0.0
-    @AppStorage("customTextColorB") private var dummy18 = 0.0
+    @AppStorage("customTextColorG") private var dummy17 = 1.0
+    @AppStorage("customTextColorB") private var dummy18 = 1.0
     
     var body: some View {
+        let config = FrameViewConfig(
+            layoutMode: dummy1,
+            verticalAlignment: dummy2,
+            metadataPosition: dummy3,
+            isCompilation: dummy4,
+            trackNumberStyle: dummy5,
+            coverScale: dummy6,
+            fontFamily: dummy7,
+            customFontName: dummy8,
+            titleFontSize: dummy9,
+            subtitleFontSize: dummy10,
+            trackFontSize: dummy11,
+            useCustomColors: dummy12,
+            bgR: dummy13,
+            bgG: dummy14,
+            bgB: dummy15,
+            textR: dummy16,
+            textG: dummy17,
+            textB: dummy18
+        )
+        
         FrameView(
             meta: meta,
             coverImage: coverImage,
             currentTrackIndex: currentTrackIndex,
             bgColor: bgColor,
             scale: scale,
-            config: FrameViewConfig(defaults: .standard)
+            config: config
         )
     }
 }
