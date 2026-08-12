@@ -75,6 +75,13 @@ struct MetadataEditorView: View {
                         selectCoverImage()
                     }
                     .controlSize(.small)
+                    
+                    if viewModel.coverImage != nil {
+                        Button("Save Cover...") {
+                            exportCoverImage()
+                        }
+                        .controlSize(.small)
+                    }
                 }
                 .padding(.leading, 10)
                 
@@ -184,6 +191,34 @@ struct MetadataEditorView: View {
     private func openCropper(with image: NSImage) {
         viewModel.imageToCrop = image
         openWindow(id: "ImageCropper")
+    }
+    
+    private func exportCoverImage() {
+        guard let image = viewModel.coverImage,
+              let tiffData = image.tiffRepresentation,
+              let bitmapImage = NSBitmapImageRep(data: tiffData),
+              let pngData = bitmapImage.representation(using: .png, properties: [:]) else {
+            return
+        }
+        
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.png]
+        panel.nameFieldStringValue = "cover.png"
+        
+        // Default directory to active album directory if available
+        if let defaultURL = viewModel.activeAlbumDirectory {
+            panel.directoryURL = defaultURL
+        }
+        
+        panel.begin { response in
+            if response == .OK, let url = panel.url {
+                do {
+                    try pngData.write(to: url)
+                } catch {
+                    print("Error saving cover image: \(error.localizedDescription)")
+                }
+            }
+        }
     }
 }
 
