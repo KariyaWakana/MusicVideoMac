@@ -6,7 +6,8 @@ struct Track: Identifiable, Equatable {
     var title: String
     var artist: String?
     let filePath: String
-    let duration: Double
+    var audioStartTime: Double = 0.0
+    var duration: Double
     var artwork: NSImage? = nil
 }
 
@@ -31,6 +32,8 @@ struct AlbumSettingsData: Codable {
         var filename: String
         var title: String?
         var artist: String?
+        var audioStartTime: Double?
+        var duration: Double?
     }
     var trackEdits: [TrackEdit]?
     

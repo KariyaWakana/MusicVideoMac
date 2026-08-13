@@ -289,10 +289,79 @@ class AudioScanner {
                 duration = totalDuration - raw.startTime
             }
             
-            tracks.append(Track(title: raw.title, artist: raw.artist, filePath: audioURL.path, duration: max(0, duration)))
+            tracks.append(Track(title: raw.title, artist: raw.artist, filePath: audioURL.path, audioStartTime: raw.startTime, duration: max(0, duration)))
         }
         
         return (tracks, albumTitle, albumArtist)
+    }
+    
+    // Parses a timestamped text (e.g., "00:00 Movement 1\n05:30 Movement 2") and generates Track objects
+    static func parseVirtualTracks(from text: String, originalTrack: Track) -> [Track] {
+        let lines = text.components(separatedBy: .newlines)
+        
+        struct ParsedTime {
+            var time: Double
+            var title: String
+        }
+        
+        var parsedTimes: [ParsedTime] = []
+        
+        // Regex to match MM:SS or HH:MM:SS
+        guard let regex = try? NSRegularExpression(pattern: "^(?:(\\d{1,2}):)?(\\d{1,2}):(\\d{2})\\s+(.+)$") else { return [] }
+        
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty { continue }
+            
+            if let match = regex.firstMatch(in: trimmed, range: NSRange(location: 0, length: trimmed.utf16.count)) {
+                let nsString = trimmed as NSString
+                
+                var hours = 0.0
+                var minutes = 0.0
+                var seconds = 0.0
+                
+                let range1 = match.range(at: 1)
+                let range2 = match.range(at: 2)
+                let range3 = match.range(at: 3)
+                let titleRange = match.range(at: 4)
+                
+                if range1.location != NSNotFound {
+                    hours = Double(nsString.substring(with: range1)) ?? 0.0
+                    minutes = Double(nsString.substring(with: range2)) ?? 0.0
+                } else {
+                    minutes = Double(nsString.substring(with: range2)) ?? 0.0
+                }
+                seconds = Double(nsString.substring(with: range3)) ?? 0.0
+                
+                let title = nsString.substring(with: titleRange).trimmingCharacters(in: .whitespaces)
+                let totalSeconds = (hours * 3600) + (minutes * 60) + seconds
+                
+                parsedTimes.append(ParsedTime(time: totalSeconds, title: title))
+            }
+        }
+        
+        // Sort just in case user inputted them out of order
+        parsedTimes.sort { $0.time < $1.time }
+        
+        var virtualTracks: [Track] = []
+        for (i, pt) in parsedTimes.enumerated() {
+            var duration: Double = 0
+            if i < parsedTimes.count - 1 {
+                duration = parsedTimes[i + 1].time - pt.time
+            } else {
+                duration = originalTrack.duration - pt.time
+            }
+            
+            virtualTracks.append(Track(
+                title: pt.title,
+                artist: originalTrack.artist, // Inherit artist
+                filePath: originalTrack.filePath, // Use the same audio file
+                audioStartTime: pt.time,
+                duration: max(0, duration)
+            ))
+        }
+        
+        return virtualTracks
     }
 }
 import Foundation

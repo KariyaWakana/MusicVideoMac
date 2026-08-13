@@ -181,9 +181,10 @@ class NativeVideoAssembler {
         for track in meta.tracks {
             let audioAsset = AVURLAsset(url: URL(fileURLWithPath: track.filePath))
             if let audioAssetTrack = try await audioAsset.loadTracks(withMediaType: .audio).first {
-                let aDuration = try await audioAsset.load(.duration)
-                try compAudioTrack.insertTimeRange(CMTimeRange(start: .zero, duration: aDuration), of: audioAssetTrack, at: currentAudioTime)
-                currentAudioTime = CMTimeAdd(currentAudioTime, aDuration)
+                let start = CMTime(seconds: track.audioStartTime, preferredTimescale: 600)
+                let duration = CMTime(seconds: track.duration, preferredTimescale: 600)
+                try compAudioTrack.insertTimeRange(CMTimeRange(start: start, duration: duration), of: audioAssetTrack, at: currentAudioTime)
+                currentAudioTime = CMTimeAdd(currentAudioTime, duration)
             }
         }
         

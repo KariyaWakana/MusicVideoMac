@@ -482,18 +482,30 @@ class AppViewModel {
         
         if let trackEdits = settings.trackEdits {
             var newTracks = [Track]()
-            var remainingTracks = self.meta.tracks
+            var unmatchedTracks = self.meta.tracks
+            
+            let trackLookup = Dictionary(grouping: self.meta.tracks, by: { ($0.filePath as NSString).lastPathComponent })
             
             for edit in trackEdits {
-                if let index = remainingTracks.firstIndex(where: { ($0.filePath as NSString).lastPathComponent == edit.filename }) {
-                    var track = remainingTracks.remove(at: index)
-                    if let newTitle = edit.title { track.title = newTitle }
-                    if let newArtist = edit.artist { track.artist = newArtist }
+                if let originalTrack = trackLookup[edit.filename]?.first {
+                    var track = originalTrack
+                    // track.id is a let constant. We can't change it, but wait: Track is a struct.
+                    // Let's create a new one to be safe if it's let.
+                    track = Track(title: edit.title ?? originalTrack.title, 
+                                  artist: edit.artist ?? originalTrack.artist, 
+                                  filePath: originalTrack.filePath, 
+                                  audioStartTime: edit.audioStartTime ?? originalTrack.audioStartTime, 
+                                  duration: edit.duration ?? originalTrack.duration, 
+                                  artwork: originalTrack.artwork)
+                                  
                     newTracks.append(track)
+                    
+                    if let uIndex = unmatchedTracks.firstIndex(where: { ($0.filePath as NSString).lastPathComponent == edit.filename }) {
+                        unmatchedTracks.remove(at: uIndex)
+                    }
                 }
             }
-            // Append any tracks that were in the folder but not in the saved settings
-            newTracks.append(contentsOf: remainingTracks)
+            newTracks.append(contentsOf: unmatchedTracks)
             self.meta.tracks = newTracks
         }
         
@@ -542,7 +554,9 @@ class AppViewModel {
             AlbumSettingsData.TrackEdit(
                 filename: (track.filePath as NSString).lastPathComponent,
                 title: track.title,
-                artist: track.artist
+                artist: track.artist,
+                audioStartTime: track.audioStartTime,
+                duration: track.duration
             )
         }
         

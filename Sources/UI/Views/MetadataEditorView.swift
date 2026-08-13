@@ -9,6 +9,9 @@ struct MetadataEditorView: View {
     @Environment(\.openWindow) private var openWindow
     @AppStorage("isCompilation") private var isCompilation: Bool = false
     
+    @State private var showingVirtualTrackPopover: UUID? = nil
+    @State private var virtualTrackText: String = ""
+    
     var body: some View {
         VStack(spacing: 0) {
             Text("Edit Metadata")
@@ -139,6 +142,50 @@ struct MetadataEditorView: View {
                         ), axis: .vertical)
                         .lineLimit(1...2)
                         .disableAutocorrection(true)
+                        
+                        Button(action: {
+                            virtualTrackText = ""
+                            showingVirtualTrackPopover = track.id
+                        }) {
+                            Image(systemName: "scissors")
+                                .foregroundColor(.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Virtual Split with Timestamps")
+                        .popover(isPresented: Binding(
+                            get: { showingVirtualTrackPopover == track.id },
+                            set: { if !$0 { showingVirtualTrackPopover = nil } }
+                        ), arrowEdge: .trailing) {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Virtual Tracks (Timestamps)")
+                                    .font(.headline)
+                                Text("Enter one timestamp and title per line.\\nExample:\\n00:00 Movement 1\\n05:30 Movement 2")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                
+                                TextEditor(text: $virtualTrackText)
+                                    .frame(width: 250, height: 150)
+                                    .font(.system(.body, design: .monospaced))
+                                    .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.secondary.opacity(0.2)))
+                                
+                                HStack {
+                                    Spacer()
+                                    Button("Cancel") { showingVirtualTrackPopover = nil }
+                                    Button("Apply Split") {
+                                        if let index = viewModel.meta.tracks.firstIndex(where: { $0.id == track.id }) {
+                                            let virtualTracks = AudioScanner.parseVirtualTracks(from: virtualTrackText, originalTrack: track)
+                                            if !virtualTracks.isEmpty {
+                                                viewModel.meta.tracks.remove(at: index)
+                                                viewModel.meta.tracks.insert(contentsOf: virtualTracks, at: index)
+                                            }
+                                        }
+                                        showingVirtualTrackPopover = nil
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                }
+                            }
+                            .padding()
+                        }
                     }
                     .padding(.vertical, 4)
                 }
