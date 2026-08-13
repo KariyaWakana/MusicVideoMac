@@ -30,7 +30,7 @@ class NativeVideoAssembler {
     
     static func assemble(meta: AlbumMetadata, coverImage: NSImage?, resolution: String, outputURL: URL, defaultsSuite: String, progress: @escaping (String, Double?) -> Void, completion: @escaping (Bool) -> Void) {
         
-        let renderTask = Task.detached {
+        Task.detached {
             do {
                 let is4K = resolution == "4K"
                 let is480p = resolution == "480p"
