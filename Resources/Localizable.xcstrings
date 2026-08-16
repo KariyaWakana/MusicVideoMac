@@ -17,15 +17,8 @@
         }
       }
     },
-    "%@ • %@ • %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ • %2$@ • %3$@"
-          }
-        }
-      }
+    "%lld" : {
+
     },
     "01 02 03" : {
 
@@ -48,6 +41,9 @@
     "1080p (1920x1080)" : {
 
     },
+    "Above Tracks" : {
+
+    },
     "Adjust Cover Crop" : {
 
     },
@@ -66,6 +62,9 @@
     "Album Title" : {
 
     },
+    "All Discs (Batch Render)" : {
+
+    },
     "Allow Direct CD Reading" : {
 
     },
@@ -73,6 +72,9 @@
 
     },
     "Apply Crop" : {
+
+    },
+    "Apply Split" : {
 
     },
     "Artist" : {
@@ -142,6 +144,9 @@
     "Compilation Album (Various Artists)" : {
 
     },
+    "Constant Frame Rate (CFR)" : {
+
+    },
     "Cover Center (Triptych)" : {
 
     },
@@ -167,6 +172,21 @@
 
     },
     "Custom..." : {
+
+    },
+    "Disc" : {
+
+    },
+    "Disc %lld" : {
+
+    },
+    "Disc %lld Colors" : {
+
+    },
+    "Disc Label Position:" : {
+
+    },
+    "Disc Transition Duration" : {
 
     },
     "Done" : {
@@ -231,6 +251,12 @@
     "Enables skipping the CD ripping process. Rendering directly from physical discs is extremely slow and can severely damage slot-loading optical drives (e.g. Apple SuperDrive) due to overheating or lock-ups." : {
 
     },
+    "Enter one timestamp and title per line.\\nExample:\\n00:00 Movement 1\\n05:30 Movement 2" : {
+
+    },
+    "Experimental: Fast Segment Assembly (CFR)" : {
+
+    },
     "Export" : {
 
     },
@@ -277,13 +303,22 @@
     "Genre" : {
 
     },
+    "Global Colors" : {
+
+    },
     "Hardware Acceleration (VideoToolbox)" : {
 
     },
     "Helvetica" : {
 
     },
+    "Hidden" : {
+
+    },
     "I II III" : {
+
+    },
+    "Increase this to trick video platforms into not dropping transition frames (e.g. 15 or 30). Higher values increase render time." : {
 
     },
     "Japanese" : {
@@ -293,6 +328,9 @@
 
     },
     "Layout & Alignment" : {
+
+    },
+    "Left of Title" : {
 
     },
     "Lexend" : {
@@ -384,6 +422,9 @@
     "Presets" : {
 
     },
+    "Previewing Disc %lld" : {
+
+    },
     "pt" : {
 
     },
@@ -409,6 +450,9 @@
 
     },
     "Restore Default" : {
+
+    },
+    "Right of Title" : {
 
     },
     "Right-click to Scan Document with iPhone" : {
@@ -501,6 +545,12 @@
         }
       }
     },
+    "Separate Colors per Disc" : {
+
+    },
+    "Significantly speeds up CFR rendering by generating tiny video blocks and losslessly stitching them together." : {
+
+    },
     "Simplified Chinese" : {
 
     },
@@ -511,6 +561,9 @@
 
     },
     "Standard (AAC)" : {
+
+    },
+    "Subtitle" : {
 
     },
     "System (San Francisco)" : {
@@ -564,6 +617,9 @@
     "Vertical Alignment:" : {
 
     },
+    "VFR Static FPS:" : {
+
+    },
     "Video Profile" : {
 
     },
@@ -571,6 +627,25 @@
 
     },
     "View active and queued rendering jobs" : {
+
+    },
+    "Virtual Split with Timestamps" : {
+
+    },
+    "Virtual Tracks (Timestamps)" : {
+
+    },
+    "Warning: Previewing Disc %lld, but you selected Disc %lld to render." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Warning: Previewing Disc %1$lld, but you selected Disc %2$lld to render."
+          }
+        }
+      }
+    },
+    "When checked, exports strict CFR. When unchecked, uses Adaptive VFR for static portions (faster rendering, smaller file size, but may drop frames on some video platforms)." : {
 
     },
     "Year" : {

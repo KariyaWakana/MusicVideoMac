@@ -10,6 +10,9 @@ struct SettingsView: View {
     @AppStorage("audioQuality") private var audioQuality: String = "AAC"
     @AppStorage("hardwareAcceleration") private var hardwareAcceleration: Bool = true
     @AppStorage("allowDirectCDReading") private var allowDirectCDReading: Bool = false
+    @AppStorage("useConstantFrameRate") private var useConstantFrameRate: Bool = true
+    @AppStorage("vfrBaselineFPS") private var vfrBaselineFPS: Double = 1.0
+    @AppStorage("useSegmentAssembly") private var useSegmentAssembly: Bool = false
     
     // Appearance Settings
     @AppStorage("layoutMode") private var layoutMode: String = "Left"
@@ -26,6 +29,7 @@ struct SettingsView: View {
     @AppStorage("trackFontSize") private var trackFontSize: Double = 32.0
     
     @AppStorage("useCustomColors") private var useCustomColors: Bool = false
+    @AppStorage("separateDiscColors") private var separateDiscColors: Bool = false
     @AppStorage("customBgColorR") private var bgR: Double = 0.2
     @AppStorage("customBgColorG") private var bgG: Double = 0.2
     @AppStorage("customBgColorB") private var bgB: Double = 0.2
@@ -50,7 +54,24 @@ struct SettingsView: View {
     }()
     
     var previewMeta: AlbumMetadata {
-        viewModel.meta.tracks.isEmpty ? mockMeta : viewModel.meta
+        if viewModel.meta.tracks.isEmpty { return mockMeta }
+        var meta = viewModel.meta
+        
+        let targetDisc = viewModel.previewDisc ?? viewModel.activeDisc
+        if let disc = targetDisc {
+            meta.tracks = meta.tracks.filter { ($0.discNumber ?? 1) == disc }
+            let uniqueDiscs = Array(Set(viewModel.meta.tracks.compactMap { $0.discNumber }))
+            if uniqueDiscs.count > 1 {
+                meta.discTitle = "Disc \(disc)"
+            }
+            
+            if useCustomColors && separateDiscColors {
+                let dKey = String(disc)
+                meta.overrideBgColor = viewModel.discBgColors[dKey]
+                meta.overrideTextColor = viewModel.discTextColors[dKey]
+            }
+        }
+        return meta
     }
     var previewCover: NSImage? {
         viewModel.meta.tracks.isEmpty ? nil : viewModel.coverImage
@@ -70,6 +91,23 @@ struct SettingsView: View {
                         Picker("Framerate:", selection: $videoFramerate) {
                             Text("30 fps").tag(30)
                             Text("60 fps").tag(60)
+                        }
+                        Toggle("Constant Frame Rate (CFR)", isOn: $useConstantFrameRate)
+                            .help("When checked, exports strict CFR. When unchecked, uses Adaptive VFR for static portions (faster rendering, smaller file size, but may drop frames on some video platforms).")
+                        if !useConstantFrameRate {
+                            HStack {
+                                Text("VFR Static FPS:")
+                                Slider(value: $vfrBaselineFPS, in: 1...30, step: 1)
+                                Text("\(Int(vfrBaselineFPS))")
+                                    .frame(width: 30, alignment: .trailing)
+                            }
+                            .help("Increase this to trick video platforms into not dropping transition frames (e.g. 15 or 30). Higher values increase render time.")
+                        }
+                        
+                        if useConstantFrameRate {
+                            Toggle("Experimental: Fast Segment Assembly (CFR)", isOn: $useSegmentAssembly)
+                                .help("Significantly speeds up CFR rendering by generating tiny video blocks and losslessly stitching them together.")
+                                .foregroundColor(.orange)
                         }
                         Picker("Output Format:", selection: $outputFormat) {
                             Text("MP4 (.mp4)").tag("mp4")
@@ -121,14 +159,65 @@ struct SettingsView: View {
             VStack(spacing: 0) {
                 // ANCHORED LIVE PREVIEW
                 let scale: CGFloat = 0.22 // Slightly larger since it has its own space
-                LiveFrameView(meta: previewMeta, coverImage: previewCover, currentTrackIndex: 0, bgColor: Color(NSColor.controlBackgroundColor), scale: scale)
-                    .frame(width: 1920 * scale, height: 1080 * scale)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .shadow(radius: 8)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, 20)
-                    .background(Color(NSColor.windowBackgroundColor).shadow(radius: 2))
-                    .zIndex(1)
+                
+                VStack(spacing: 12) {
+                    let uniqueDiscs = Array(Set(viewModel.meta.tracks.compactMap { $0.discNumber })).sorted()
+                    if uniqueDiscs.count > 1 {
+                        HStack(spacing: 16) {
+                            Button(action: {
+                                let current = viewModel.previewDisc ?? viewModel.activeDisc ?? uniqueDiscs.first ?? 1
+                                if let idx = uniqueDiscs.firstIndex(of: current), idx > 0 {
+                                    viewModel.previewDisc = uniqueDiscs[idx - 1]
+                                }
+                            }) {
+                                Image(systemName: "chevron.left").font(.body.bold())
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.secondary)
+                            
+                            Text("Previewing Disc \(viewModel.previewDisc ?? viewModel.activeDisc ?? uniqueDiscs.first ?? 1)")
+                                .font(.subheadline.bold())
+                                .foregroundColor(.primary)
+                                .frame(width: 140, alignment: .center)
+                                
+                            Button(action: {
+                                let current = viewModel.previewDisc ?? viewModel.activeDisc ?? uniqueDiscs.first ?? 1
+                                if let idx = uniqueDiscs.firstIndex(of: current), idx < uniqueDiscs.count - 1 {
+                                    viewModel.previewDisc = uniqueDiscs[idx + 1]
+                                }
+                            }) {
+                                Image(systemName: "chevron.right").font(.body.bold())
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundColor(.secondary)
+                        }
+                        .padding(.top, 12)
+                        .onAppear {
+                            if viewModel.previewDisc == nil {
+                                viewModel.previewDisc = viewModel.activeDisc ?? uniqueDiscs.first
+                            }
+                        }
+                        
+                        if viewModel.activeDisc != nil {
+                            let previewing = viewModel.previewDisc ?? viewModel.activeDisc ?? 1
+                            if previewing != viewModel.activeDisc! {
+                                Text("Warning: Previewing Disc \(previewing), but you selected Disc \(viewModel.activeDisc!) to render.")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+                        }
+                    }
+                    
+                    LiveFrameView(meta: previewMeta, coverImage: previewCover, currentTrackIndex: 0, bgColor: Color(NSColor.controlBackgroundColor), scale: scale)
+                        .frame(width: 1920 * scale, height: 1080 * scale)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .shadow(radius: 8)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.bottom, 20)
+                        .padding(.top, uniqueDiscs.count > 1 ? 0 : 20)
+                }
+                .background(Color(NSColor.windowBackgroundColor).shadow(radius: 2))
+                .zIndex(1)
                 
                 Divider()
                 

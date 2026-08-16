@@ -155,8 +155,31 @@ class MetadataFetcher {
                         meta.coverURL = URL(string: highResUrl)
                     }
                     
-                    DispatchQueue.main.async {
-                        completion(meta)
+                    if let collectionId = firstResult["collectionId"] as? Int {
+                        // 2b. Fetch songs to determine track counts per disc (increased limit to 200 for large multi-disc box sets)
+                        if let lookupUrl = URL(string: "https://itunes.apple.com/lookup?id=\(collectionId)&entity=song&limit=200") {
+                            URLSession.shared.dataTask(with: lookupUrl) { songData, _, _ in
+                                if let sd = songData,
+                                   let sJson = try? JSONSerialization.jsonObject(with: sd, options: []) as? [String: Any],
+                                   let sResults = sJson["results"] as? [[String: Any]] {
+                                    var countsPerDisc = [Int: Int]()
+                                    for song in sResults {
+                                        if (song["wrapperType"] as? String) == "track",
+                                           let discNum = song["discNumber"] as? Int {
+                                            countsPerDisc[discNum, default: 0] += 1
+                                        }
+                                    }
+                                    if countsPerDisc.count > 1 {
+                                        meta.itunesTrackCountsPerDisc = countsPerDisc
+                                    }
+                                }
+                                DispatchQueue.main.async { completion(meta) }
+                            }.resume()
+                        } else {
+                            DispatchQueue.main.async { completion(meta) }
+                        }
+                    } else {
+                        DispatchQueue.main.async { completion(meta) }
                     }
                 } else {
                     completion(nil)

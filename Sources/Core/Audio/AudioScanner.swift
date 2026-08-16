@@ -98,6 +98,7 @@ class AudioScanner {
                         var embeddedAlbumArtist: String? = nil
                         var embeddedYear: String? = nil
                         var embeddedGenre: String? = nil
+                        var embeddedDiscNumber: Int? = nil
                         var localArtwork: NSImage? = nil
                         
                         if #available(macOS 13.0, *) {
@@ -124,13 +125,44 @@ class AudioScanner {
                                                     else if uKey == "ALBUMARTIST" && embeddedAlbumArtist == nil { embeddedAlbumArtist = val as? String }
                                                     else if (uKey == "DATE" || uKey == "YEAR") && embeddedYear == nil { embeddedYear = val as? String }
                                                     else if uKey == "GENRE" && embeddedGenre == nil { embeddedGenre = val as? String }
+                                                    else if (uKey == "TPOS" || uKey == "DISC" || uKey == "DISK" || uKey == "DISCNUMBER") && embeddedDiscNumber == nil {
+                                                        if let num = val as? NSNumber { embeddedDiscNumber = num.intValue }
+                                                        else if let str = val as? String { embeddedDiscNumber = Int(str.components(separatedBy: "/").first ?? str) }
+                                                    }
                                                     else if (uKey == "COVERART" || uKey == "METADATA_BLOCK_PICTURE") && localArtwork == nil, let data = val as? Data { localArtwork = NSImage(data: data) }
+                                                } else if let identifier = item.identifier {
+                                                    if identifier == .iTunesMetadataDiscNumber && embeddedDiscNumber == nil {
+                                                        if let data = val as? Data, data.count >= 6 {
+                                                            // iTunes stores disc number as data, usually 4-byte or 8-byte ints.
+                                                            // Offset 4 usually contains the disc number. Offset 6 for total.
+                                                            let disc = Int(data[5])
+                                                            if disc > 0 { embeddedDiscNumber = disc }
+                                                        } else if let num = val as? NSNumber {
+                                                            embeddedDiscNumber = num.intValue
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
                                     }
                                 }
                             }
+                            
+                            // Fallback to folder name matching (e.g. "Disk 1", "CD 2") if metadata is missing
+                            if embeddedDiscNumber == nil {
+                                let relPath = (path as NSString).replacingOccurrences(of: (finalDir?.path ?? "") + "/", with: "")
+                                let pathComponents = relPath.components(separatedBy: "/")
+                                if pathComponents.count > 1 {
+                                    let parentFolder = pathComponents[0]
+                                    if let regex = try? NSRegularExpression(pattern: "(?i)(?:cd|disc|disk)\\s*(\\d+)") {
+                                        if let match = regex.firstMatch(in: parentFolder, range: NSRange(parentFolder.startIndex..., in: parentFolder)),
+                                           let range = Range(match.range(at: 1), in: parentFolder) {
+                                            embeddedDiscNumber = Int(parentFolder[range])
+                                        }
+                                    }
+                                }
+                            }
+                            
                         } else {
                             duration = CMTimeGetSeconds(asset.duration)
                             for item in asset.metadata {
@@ -149,7 +181,35 @@ class AudioScanner {
                                     else if uKey == "ALBUMARTIST" && embeddedAlbumArtist == nil { embeddedAlbumArtist = item.stringValue }
                                     else if (uKey == "DATE" || uKey == "YEAR") && embeddedYear == nil { embeddedYear = item.stringValue }
                                     else if uKey == "GENRE" && embeddedGenre == nil { embeddedGenre = item.stringValue }
+                                    else if (uKey == "TPOS" || uKey == "DISC" || uKey == "DISK" || uKey == "DISCNUMBER") && embeddedDiscNumber == nil {
+                                        if let num = item.numberValue { embeddedDiscNumber = num.intValue }
+                                        else if let str = item.stringValue { embeddedDiscNumber = Int(str.components(separatedBy: "/").first ?? str) }
+                                    }
                                     else if (uKey == "COVERART" || uKey == "METADATA_BLOCK_PICTURE") && localArtwork == nil, let data = item.dataValue { localArtwork = NSImage(data: data) }
+                                } else if let identifier = item.identifier {
+                                    if identifier == .iTunesMetadataDiscNumber && embeddedDiscNumber == nil {
+                                        if let data = item.dataValue, data.count >= 6 {
+                                            let disc = Int(data[5])
+                                            if disc > 0 { embeddedDiscNumber = disc }
+                                        } else if let num = item.numberValue {
+                                            embeddedDiscNumber = num.intValue
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Fallback to folder name matching for older macOS versions too
+                            if embeddedDiscNumber == nil {
+                                let relPath = (path as NSString).replacingOccurrences(of: (finalDir?.path ?? "") + "/", with: "")
+                                let pathComponents = relPath.components(separatedBy: "/")
+                                if pathComponents.count > 1 {
+                                    let parentFolder = pathComponents[0]
+                                    if let regex = try? NSRegularExpression(pattern: "(?i)(?:cd|disc|disk)\\s*(\\d+)") {
+                                        if let match = regex.firstMatch(in: parentFolder, range: NSRange(parentFolder.startIndex..., in: parentFolder)),
+                                           let range = Range(match.range(at: 1), in: parentFolder) {
+                                            embeddedDiscNumber = Int(parentFolder[range])
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -159,7 +219,15 @@ class AudioScanner {
                         let finalTitle = (embeddedTitle != nil && !embeddedTitle!.isEmpty) ? embeddedTitle! : clean.title
                         let finalArtist = (embeddedArtist != nil && !embeddedArtist!.isEmpty) ? embeddedArtist! : clean.artist
                         
-                        let track = Track(title: finalTitle, artist: finalArtist, filePath: path, duration: duration.isNaN ? 0 : duration, artwork: localArtwork)
+                        // Folder structure takes precedence over ID3 tags for disc numbers
+                        let parentFolder = ((path as NSString).deletingLastPathComponent as NSString).lastPathComponent
+                        if let regex = try? NSRegularExpression(pattern: "(?i)(?:cd|disc|disk)\\s*(\\d+)"),
+                           let match = regex.firstMatch(in: parentFolder, range: NSRange(location: 0, length: parentFolder.utf16.count)) {
+                            let numStr = (parentFolder as NSString).substring(with: match.range(at: 1))
+                            embeddedDiscNumber = Int(numStr)
+                        }
+                        
+                        let track = Track(title: finalTitle, artist: finalArtist, filePath: path, discNumber: embeddedDiscNumber, duration: duration.isNaN ? 0 : duration, artwork: localArtwork)
                         return (track, embeddedAlbum, embeddedAlbumArtist, embeddedYear, embeddedGenre)
                     }
                 }
@@ -302,16 +370,25 @@ class AudioScanner {
         struct ParsedTime {
             var time: Double
             var title: String
+            var disc: Int?
         }
-        
-        var parsedTimes: [ParsedTime] = []
         
         // Regex to match MM:SS or HH:MM:SS
         guard let regex = try? NSRegularExpression(pattern: "^(?:(\\d{1,2}):)?(\\d{1,2}):(\\d{2})\\s+(.+)$") else { return [] }
+        var parsedTimes: [ParsedTime] = []
+        var currentDisc = originalTrack.discNumber
         
         for line in lines {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty { continue }
+            
+            // Check for Disc header
+            if let discRegex = try? NSRegularExpression(pattern: "(?i)^(?:cd|disc|disk)\\s*(\\d+)"),
+               let match = discRegex.firstMatch(in: trimmed, range: NSRange(location: 0, length: trimmed.utf16.count)) {
+                let numStr = (trimmed as NSString).substring(with: match.range(at: 1))
+                currentDisc = Int(numStr)
+                continue
+            }
             
             if let match = regex.firstMatch(in: trimmed, range: NSRange(location: 0, length: trimmed.utf16.count)) {
                 let nsString = trimmed as NSString
@@ -336,7 +413,9 @@ class AudioScanner {
                 let title = nsString.substring(with: titleRange).trimmingCharacters(in: .whitespaces)
                 let totalSeconds = (hours * 3600) + (minutes * 60) + seconds
                 
-                parsedTimes.append(ParsedTime(time: totalSeconds, title: title))
+                var pt = ParsedTime(time: totalSeconds, title: title)
+                pt.disc = currentDisc
+                parsedTimes.append(pt)
             }
         }
         
@@ -356,6 +435,7 @@ class AudioScanner {
                 title: pt.title,
                 artist: originalTrack.artist, // Inherit artist
                 filePath: originalTrack.filePath, // Use the same audio file
+                discNumber: pt.disc, // Inherited or parsed disc
                 audioStartTime: pt.time,
                 duration: max(0, duration)
             ))
@@ -407,7 +487,7 @@ class CDRipManager {
             try? fileManager.createDirectory(at: appMusicDir, withIntermediateDirectories: true, attributes: nil)
             panel.directoryURL = appMusicDir
             
-            panel.begin { response in
+            let handler: (NSApplication.ModalResponse) -> Void = { response in
                 if response == .OK, let destinationURL = panel.url {
                     Task.detached(priority: .userInitiated) {
                         await self.performRip(files: audioFiles, to: destinationURL, progress: progress) { finalURL in
@@ -417,6 +497,13 @@ class CDRipManager {
                 } else {
                     completion(nil) // User cancelled
                 }
+            }
+            
+            if let window = NSApp.keyWindow {
+                panel.beginSheetModal(for: window, completionHandler: handler)
+            } else {
+                NSApp.activate(ignoringOtherApps: true)
+                panel.begin(completionHandler: handler)
             }
         }
     }

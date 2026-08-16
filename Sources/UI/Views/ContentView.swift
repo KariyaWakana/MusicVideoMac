@@ -117,6 +117,19 @@ struct ContentView: View {
                                         }
                                         .buttonStyle(.bordered)
                                         .controlSize(.large)
+                                        
+                                        let uniqueDiscs = Array(Set(viewModel.meta.tracks.compactMap { $0.discNumber })).sorted()
+                                        if uniqueDiscs.count > 1 {
+                                            Picker("", selection: Bindable(viewModel).activeDisc) {
+                                                Text("All Discs (Batch Render)").tag(Int?.none)
+                                                ForEach(uniqueDiscs, id: \.self) { disc in
+                                                    Text("Disc \(disc)").tag(Int?.some(disc))
+                                                }
+                                            }
+                                            .pickerStyle(.menu)
+                                            .frame(width: 160)
+                                            .padding(.leading, 10)
+                                        }
                                     }
                                     
                                     if viewModel.isProcessing {
@@ -155,28 +168,52 @@ struct ContentView: View {
                                 Divider()
                                 
                                 // Track Rows
-                                ForEach(Array(viewModel.meta.tracks.enumerated()), id: \.element.id) { index, track in
-                                    HStack {
-                                        Text(String(format: "%02d", index + 1))
-                                            .frame(width: 30, alignment: .leading)
-                                            .foregroundColor(.secondary)
-                                        
-                                        Text(track.title)
-                                            .font(.system(size: 14))
-                                            .frame(minWidth: 100, idealWidth: 200, maxWidth: .infinity, alignment: .leading)
-                                        
-                                        if let artist = track.artist, !artist.isEmpty, artist != viewModel.meta.artist {
-                                            Text(artist)
-                                                .font(.system(size: 13))
-                                                .foregroundColor(.secondary)
-                                                .frame(minWidth: 80, idealWidth: 150, maxWidth: .infinity, alignment: .leading)
-                                        } else {
-                                            Spacer().frame(minWidth: 80, idealWidth: 150, maxWidth: .infinity, alignment: .leading)
+                                let filteredTracks = viewModel.activeDisc != nil ? viewModel.meta.tracks.filter { ($0.discNumber ?? 1) == viewModel.activeDisc } : viewModel.meta.tracks
+                                
+                                ForEach(Array(filteredTracks.enumerated()), id: \.element.id) { index, track in
+                                    let tracks = filteredTracks
+                                    let currentDisc = track.discNumber ?? 1
+                                    let safePrevIndex = index - 1
+                                    let previousDisc = (safePrevIndex >= 0 && safePrevIndex < tracks.count) ? (tracks[safePrevIndex].discNumber ?? 1) : -1
+                                    
+                                    VStack(alignment: .leading, spacing: 0) {
+                                        if currentDisc != previousDisc {
+                                            HStack {
+                                                Text("Disc \(currentDisc)")
+                                                    .font(.subheadline.bold())
+                                                    .foregroundColor(.accentColor)
+                                                Spacer()
+                                            }
+                                            .padding(.horizontal, 10)
+                                            .padding(.top, index == 0 ? 8 : 16)
+                                            .padding(.bottom, 6)
                                         }
+                                        
+                                        let safeCurrentIndex = min(index, tracks.count)
+                                        let trackIndexInDisc = tracks.prefix(upTo: safeCurrentIndex).filter { ($0.discNumber ?? 1) == currentDisc }.count + 1
+                                        
+                                        HStack {
+                                            Text(String(format: "%02d", trackIndexInDisc))
+                                                .frame(width: 30, alignment: .leading)
+                                                .foregroundColor(.secondary)
+                                            
+                                            Text(track.title)
+                                                .font(.system(size: 14))
+                                                .frame(minWidth: 100, idealWidth: 200, maxWidth: .infinity, alignment: .leading)
+                                            
+                                            if let artist = track.artist, !artist.isEmpty, artist != viewModel.meta.artist {
+                                                Text(artist)
+                                                    .font(.system(size: 13))
+                                                    .foregroundColor(.secondary)
+                                                    .frame(minWidth: 80, idealWidth: 150, maxWidth: .infinity, alignment: .leading)
+                                            } else {
+                                                Spacer().frame(minWidth: 80, idealWidth: 150, maxWidth: .infinity, alignment: .leading)
+                                            }
+                                        }
+                                        .padding(.vertical, 8)
+                                        .padding(.horizontal, 10)
+                                        .background(index % 2 == 0 ? Color(NSColor.alternatingContentBackgroundColors[0]) : Color(NSColor.alternatingContentBackgroundColors[1]))
                                     }
-                                    .padding(.vertical, 8)
-                                    .padding(.horizontal, 10)
-                                    .background(index % 2 == 0 ? Color(NSColor.alternatingContentBackgroundColors[0]) : Color(NSColor.alternatingContentBackgroundColors[1]))
                                 }
                             }
                             .clipShape(RoundedRectangle(cornerRadius: 8))

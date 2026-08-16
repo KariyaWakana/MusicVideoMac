@@ -11,6 +11,8 @@ struct LayoutSettingsForm: View {
     @AppStorage("trackNumberStyle") private var trackNumberStyle: Int = 0
     @AppStorage("coverScale") private var coverScale: Double = 1.0
     
+    @AppStorage("discLabelPosition") private var discLabelPosition: String = "Right of Title"
+    
     @AppStorage("fontFamily") private var fontFamily: String = "Lexend"
     @AppStorage("customFontName") private var customFontName: String = ""
     @AppStorage("titleFontSize") private var titleFontSize: Double = 64.0
@@ -18,6 +20,8 @@ struct LayoutSettingsForm: View {
     @AppStorage("trackFontSize") private var trackFontSize: Double = 32.0
     
     @AppStorage("useCustomColors") private var useCustomColors: Bool = false
+    @AppStorage("separateDiscColors") private var separateDiscColors: Bool = false
+    
     @AppStorage("customBgColorR") private var bgR: Double = 0.2
     @AppStorage("customBgColorG") private var bgG: Double = 0.2
     @AppStorage("customBgColorB") private var bgB: Double = 0.2
@@ -26,12 +30,18 @@ struct LayoutSettingsForm: View {
     @AppStorage("customTextColorG") private var textG: Double = 1.0
     @AppStorage("customTextColorB") private var textB: Double = 1.0
     
+    @AppStorage("discTransitionDuration") private var discTransitionDuration: Double = 3.0
+    
     @State private var fontPickerDelegate = FontPickerDelegate()
     
     enum FocusField { case form }
     @FocusState private var focusedField: FocusField?
     
     var body: some View {
+        // Explicitly read observable dictionaries to ensure the form invalidates when they change
+        let _ = viewModel.discBgColors
+        let _ = viewModel.discTextColors
+        
         Form {
             Section {
                 Picker("Cover Position:", selection: $layoutMode) {
@@ -57,6 +67,17 @@ struct LayoutSettingsForm: View {
                 Picker("Title Position:", selection: $metadataPosition) {
                     Text(layoutMode == "Center" ? "Title Above Cover" : "Title Above Tracks").tag("Top")
                     Text(layoutMode == "Center" ? "Title Below Cover" : "Title Below Tracks").tag("Bottom")
+                }
+                
+                let uniqueDiscs = Array(Set(viewModel.meta.tracks.compactMap { $0.discNumber })).sorted()
+                if uniqueDiscs.count > 1 {
+                    Picker("Disc Label Position:", selection: $discLabelPosition) {
+                        Text("Right of Title").tag("Right of Title")
+                        Text("Left of Title").tag("Left of Title")
+                        Text("Subtitle").tag("Subtitle")
+                        Text("Above Tracks").tag("Above Tracks")
+                        Text("Hidden").tag("Hidden")
+                    }
                 }
                 Toggle("Compilation Album (Show Track Artists)", isOn: $isCompilation)
                 
@@ -144,45 +165,47 @@ struct LayoutSettingsForm: View {
                 Toggle("Override Auto Colors", isOn: $useCustomColors)
                 
                 if useCustomColors {
-                    VStack(spacing: 10) {
-                        HStack {
-                            Text("Background Color")
-                            Spacer()
-                            MacColorPicker(selection: Binding(get: {
-                                NSColor(red: bgR, green: bgG, blue: bgB, alpha: 1.0)
-                            }, set: { newColor in
-                                if let nsColor = newColor.usingColorSpace(.sRGB) {
-                                    bgR = Double(nsColor.redComponent)
-                                    bgG = Double(nsColor.greenComponent)
-                                    bgB = Double(nsColor.blueComponent)
-                                }
-                            }))
-                            .frame(width: 50, height: 25)
+                    let uniqueDiscs = Array(Set(viewModel.meta.tracks.compactMap { $0.discNumber })).sorted()
+                    if uniqueDiscs.count > 1 {
+                        Toggle("Separate Colors per Disc", isOn: $separateDiscColors)
+                            .padding(.bottom, 8)
+                        
+                        if separateDiscColors {
+                            let targetDisc = viewModel.previewDisc ?? viewModel.activeDisc ?? uniqueDiscs.first ?? 1
+                            let dKey = String(targetDisc)
+                            
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Disc \(targetDisc) Colors").font(.subheadline).foregroundColor(.secondary)
+                                ColorPairView(
+                                    bgR: Binding(get: { viewModel.discBgColors[dKey]?[0] ?? bgR }, set: { setDiscColor(disc: dKey, rgb: 0, val: $0, isBg: true) }),
+                                    bgG: Binding(get: { viewModel.discBgColors[dKey]?[1] ?? bgG }, set: { setDiscColor(disc: dKey, rgb: 1, val: $0, isBg: true) }),
+                                    bgB: Binding(get: { viewModel.discBgColors[dKey]?[2] ?? bgB }, set: { setDiscColor(disc: dKey, rgb: 2, val: $0, isBg: true) }),
+                                    textR: Binding(get: { viewModel.discTextColors[dKey]?[0] ?? textR }, set: { setDiscColor(disc: dKey, rgb: 0, val: $0, isBg: false) }),
+                                    textG: Binding(get: { viewModel.discTextColors[dKey]?[1] ?? textG }, set: { setDiscColor(disc: dKey, rgb: 1, val: $0, isBg: false) }),
+                                    textB: Binding(get: { viewModel.discTextColors[dKey]?[2] ?? textB }, set: { setDiscColor(disc: dKey, rgb: 2, val: $0, isBg: false) })
+                                )
+                            }.padding(.leading, 10).padding(.top, 5)
+                        } else {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Global Colors").font(.subheadline).foregroundColor(.secondary)
+                                ColorPairView(bgR: $bgR, bgG: $bgG, bgB: $bgB, textR: $textR, textG: $textG, textB: $textB)
+                            }.padding(.leading, 10).padding(.top, 5)
                         }
                         
-                        Button(action: swapColors) {
-                            Image(systemName: "arrow.up.arrow.down")
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundColor(.accentColor)
+                        Divider().padding(.vertical, 8)
                         
                         HStack {
-                            Text("Text Color")
+                            Label("Disc Transition Duration", systemImage: "clock.arrow.circlepath")
                             Spacer()
-                            MacColorPicker(selection: Binding(get: {
-                                NSColor(red: textR, green: textG, blue: textB, alpha: 1.0)
-                            }, set: { newColor in
-                                if let nsColor = newColor.usingColorSpace(.sRGB) {
-                                    textR = Double(nsColor.redComponent)
-                                    textG = Double(nsColor.greenComponent)
-                                    textB = Double(nsColor.blueComponent)
-                                }
-                            }))
-                            .frame(width: 50, height: 25)
+                            Text(String(format: "%.1fs", discTransitionDuration)).frame(width: 40, alignment: .trailing).foregroundColor(.secondary)
                         }
+                        Slider(value: $discTransitionDuration, in: 0.0...10.0, step: 0.5)
+                            .padding(.leading, 20)
+                        
+                    } else {
+                        ColorPairView(bgR: $bgR, bgG: $bgG, bgB: $bgB, textR: $textR, textG: $textG, textB: $textB)
+                            .padding(.leading, 20).padding(.top, 5)
                     }
-                    .padding(.leading, 20)
-                    .padding(.top, 5)
                     
                     if let cover = viewModel.coverImage {
                         Button("Extract Recommended Colors from Cover") {
@@ -242,12 +265,6 @@ struct LayoutSettingsForm: View {
         NSFontManager.shared.orderFrontFontPanel(nil)
     }
     
-    private func swapColors() {
-        let tempR = bgR, tempG = bgG, tempB = bgB
-        bgR = textR; bgG = textG; bgB = textB
-        textR = tempR; textG = tempG; textB = tempB
-    }
-    
     private func extractColors(from image: NSImage) {
         // 1. Extract dominant colors (>5% area)
         let dominantColors = ColorExtractor.extractDominantColors(from: image, threshold: 0.05)
@@ -271,6 +288,22 @@ struct LayoutSettingsForm: View {
             
             // Automatically turn on custom colors
             useCustomColors = true
+            
+            // Also reset per-disc colors
+            viewModel.discBgColors.removeAll()
+            viewModel.discTextColors.removeAll()
+        }
+    }
+    
+    private func setDiscColor(disc: String, rgb: Int, val: Double, isBg: Bool) {
+        if isBg {
+            var colorArr = viewModel.discBgColors[disc] ?? [bgR, bgG, bgB]
+            colorArr[rgb] = val
+            viewModel.discBgColors[disc] = colorArr
+        } else {
+            var colorArr = viewModel.discTextColors[disc] ?? [textR, textG, textB]
+            colorArr[rgb] = val
+            viewModel.discTextColors[disc] = colorArr
         }
     }
     
@@ -331,8 +364,22 @@ struct MacColorPicker: NSViewRepresentable {
     }
     
     func updateNSView(_ nsView: NSColorWell, context: Context) {
-        // print("🌈 [MacColorPicker] updateNSView: Updating color to \(selection)")
-        nsView.color = selection
+        // MUST update coordinator's parent to avoid stale bindings when View is recreated
+        context.coordinator.parent = self
+        
+        let currentColor = nsView.color.usingColorSpace(.sRGB)
+        let newColor = selection.usingColorSpace(.sRGB)
+        
+        if let c1 = currentColor, let c2 = newColor {
+            let rDiff = abs(c1.redComponent - c2.redComponent)
+            let gDiff = abs(c1.greenComponent - c2.greenComponent)
+            let bDiff = abs(c1.blueComponent - c2.blueComponent)
+            if rDiff > 0.01 || gDiff > 0.01 || bDiff > 0.01 {
+                nsView.color = selection
+            }
+        } else {
+            nsView.color = selection
+        }
     }
     
     func makeCoordinator() -> Coordinator {
@@ -348,5 +395,60 @@ struct MacColorPicker: NSViewRepresentable {
             print("🌈 [MacColorPicker] colorChanged: User selected new color -> \(sender.color)")
             parent.selection = sender.color
         }
+    }
+}
+
+struct ColorPairView: View {
+    @Binding var bgR: Double
+    @Binding var bgG: Double
+    @Binding var bgB: Double
+    @Binding var textR: Double
+    @Binding var textG: Double
+    @Binding var textB: Double
+    
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Text("Background Color")
+                Spacer()
+                MacColorPicker(selection: Binding(get: {
+                    NSColor(red: bgR, green: bgG, blue: bgB, alpha: 1.0)
+                }, set: { newColor in
+                    if let nsColor = newColor.usingColorSpace(.sRGB) {
+                        bgR = Double(nsColor.redComponent)
+                        bgG = Double(nsColor.greenComponent)
+                        bgB = Double(nsColor.blueComponent)
+                    }
+                }))
+                .frame(width: 50, height: 25)
+            }
+            
+            Button(action: swapColors) {
+                Image(systemName: "arrow.up.arrow.down")
+            }
+            .buttonStyle(.plain)
+            .foregroundColor(.accentColor)
+            
+            HStack {
+                Text("Text Color")
+                Spacer()
+                MacColorPicker(selection: Binding(get: {
+                    NSColor(red: textR, green: textG, blue: textB, alpha: 1.0)
+                }, set: { newColor in
+                    if let nsColor = newColor.usingColorSpace(.sRGB) {
+                        textR = Double(nsColor.redComponent)
+                        textG = Double(nsColor.greenComponent)
+                        textB = Double(nsColor.blueComponent)
+                    }
+                }))
+                .frame(width: 50, height: 25)
+            }
+        }
+    }
+    
+    private func swapColors() {
+        let tempR = bgR, tempG = bgG, tempB = bgB
+        bgR = textR; bgG = textG; bgB = textB
+        textR = tempR; textG = tempG; textB = tempB
     }
 }

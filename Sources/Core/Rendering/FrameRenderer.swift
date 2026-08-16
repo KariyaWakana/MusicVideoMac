@@ -86,8 +86,9 @@ struct FrameViewConfig {
     var textR: Double
     var textG: Double
     var textB: Double
+    var discLabelPosition: String
     
-    init(layoutMode: String, verticalAlignment: String, metadataPosition: String, isCompilation: Bool, trackNumberStyle: Int, coverScale: Double, fontFamily: String, customFontName: String, titleFontSize: Double, subtitleFontSize: Double, trackFontSize: Double, useCustomColors: Bool, bgR: Double, bgG: Double, bgB: Double, textR: Double, textG: Double, textB: Double) {
+    init(layoutMode: String, verticalAlignment: String, metadataPosition: String, isCompilation: Bool, trackNumberStyle: Int, coverScale: Double, fontFamily: String, customFontName: String, titleFontSize: Double, subtitleFontSize: Double, trackFontSize: Double, useCustomColors: Bool, bgR: Double, bgG: Double, bgB: Double, textR: Double, textG: Double, textB: Double, discLabelPosition: String) {
         self.layoutMode = layoutMode
         self.verticalAlignment = verticalAlignment
         self.metadataPosition = metadataPosition
@@ -106,6 +107,7 @@ struct FrameViewConfig {
         self.textR = textR
         self.textG = textG
         self.textB = textB
+        self.discLabelPosition = discLabelPosition
     }
     
     init(defaults: UserDefaults = .standard) {
@@ -127,6 +129,7 @@ struct FrameViewConfig {
         textR = defaults.object(forKey: "customTextColorR") != nil ? defaults.double(forKey: "customTextColorR") : 1.0
         textG = defaults.object(forKey: "customTextColorG") != nil ? defaults.double(forKey: "customTextColorG") : 1.0
         textB = defaults.object(forKey: "customTextColorB") != nil ? defaults.double(forKey: "customTextColorB") : 1.0
+        discLabelPosition = defaults.string(forKey: "discLabelPosition") ?? "Right of Title"
     }
 }
 
@@ -137,19 +140,84 @@ struct FrameView: View {
     var currentTrackIndex: Int
     var nextTrackIndex: Int? = nil
     var transitionProgress: Double = 0.0
+    var isDiscTransition: Bool = false
     var bgColor: Color
     var scale: CGFloat
     var config: FrameViewConfig
     
-    var effectiveBgColor: Color {
-        if config.useCustomColors {
-            return Color(red: config.bgR, green: config.bgG, blue: config.bgB)
+    func colorForDisc(_ disc: Int?) -> Color {
+        guard let disc = disc else { return config.useCustomColors ? Color(red: config.bgR, green: config.bgG, blue: config.bgB) : bgColor }
+        let dKey = String(disc)
+        if config.useCustomColors, let overrideBg = meta.discBgColors?[dKey], overrideBg.count >= 3 {
+            return Color(red: overrideBg[0], green: overrideBg[1], blue: overrideBg[2])
         }
-        return bgColor
+        return config.useCustomColors ? Color(red: config.bgR, green: config.bgG, blue: config.bgB) : bgColor
+    }
+    
+    var effectiveBgColor: Color {
+        if let overrideBg = meta.overrideBgColor, overrideBg.count >= 3 {
+            return Color(red: overrideBg[0], green: overrideBg[1], blue: overrideBg[2])
+        }
+        let discNum = (currentTrackIndex >= 0 && currentTrackIndex < meta.tracks.count) ? meta.tracks[currentTrackIndex].discNumber : nil
+        return colorForDisc(discNum)
+    }
+    
+    private func colorForTextDisc(_ disc: Int?) -> Color {
+        guard let disc = disc else { return config.useCustomColors ? Color(red: config.textR, green: config.textG, blue: config.textB) : Color(NSColor.labelColor) }
+        let dKey = String(disc)
+        if config.useCustomColors, let overrideText = meta.discTextColors?[dKey], overrideText.count >= 3 {
+            return Color(red: overrideText[0], green: overrideText[1], blue: overrideText[2])
+        }
+        return config.useCustomColors ? Color(red: config.textR, green: config.textG, blue: config.textB) : Color(NSColor.labelColor)
+    }
+    
+    private func blendColors(_ c1: Color, _ c2: Color, progress: Double) -> Color {
+        let ns1 = NSColor(c1)
+        let ns2 = NSColor(c2)
+        let r = ns1.redComponent * (1 - progress) + ns2.redComponent * progress
+        let g = ns1.greenComponent * (1 - progress) + ns2.greenComponent * progress
+        let b = ns1.blueComponent * (1 - progress) + ns2.blueComponent * progress
+        let a = ns1.alphaComponent * (1 - progress) + ns2.alphaComponent * progress
+        return Color(red: r, green: g, blue: b, opacity: a)
     }
     
     private var effectiveTextColor: Color {
-        config.useCustomColors ? Color(red: config.textR, green: config.textG, blue: config.textB) : Color(NSColor.labelColor)
+        if let overrideText = meta.overrideTextColor, overrideText.count >= 3 {
+            return Color(red: overrideText[0], green: overrideText[1], blue: overrideText[2])
+        }
+        
+        let track = (currentTrackIndex >= 0 && currentTrackIndex < meta.tracks.count) ? meta.tracks[currentTrackIndex] : nil
+        let c1 = colorForTextDisc(track?.discNumber ?? 1)
+        
+        if isDiscTransition {
+            let nextTrack = (nextTrackIndex != nil && nextTrackIndex! >= 0 && nextTrackIndex! < meta.tracks.count) ? meta.tracks[nextTrackIndex!] : nil
+            let c2 = colorForTextDisc(nextTrack?.discNumber ?? 1)
+            return blendColors(c1, c2, progress: transitionProgress)
+        }
+        
+        return c1
+    }
+    
+    private var transitionOpacity: Double {
+        if !isDiscTransition { return 1.0 }
+        if transitionProgress < 0.33 {
+            return 1.0 - (transitionProgress * 3.0)
+        } else if transitionProgress > 0.66 {
+            return (transitionProgress - 0.66) * 3.0
+        } else {
+            return 0.0
+        }
+    }
+    
+    private var effectiveDiscStr: String? {
+        if let explicit = meta.discTitle { return explicit }
+        let uniqueDiscs = Array(Set(meta.tracks.compactMap { $0.discNumber }))
+        if uniqueDiscs.count > 1 {
+            let displayIndex = (isDiscTransition && transitionProgress > 0.5 && nextTrackIndex != nil) ? nextTrackIndex! : currentTrackIndex
+            let track = (displayIndex >= 0 && displayIndex < meta.tracks.count) ? meta.tracks[displayIndex] : nil
+            return "Disc \(track?.discNumber ?? 1)"
+        }
+        return nil
     }
     
     private func intToRoman(_ number: Int) -> String {
@@ -265,73 +333,110 @@ struct FrameView: View {
         switch config.verticalAlignment {
         case "Top": return .top
         case "Bottom": return .bottom
-        case "Center", "Split": return .center // "Split" pushes internally via Spacer, so the container aligns to center
+        case "Center", "Split": return .center
         default: return .center
         }
     }
     
     var body: some View {
+        let isCenter = config.layoutMode == "Center"
+        let track = (currentTrackIndex >= 0 && currentTrackIndex < meta.tracks.count) ? meta.tracks[currentTrackIndex] : nil
+        let nextTrack = (nextTrackIndex != nil && nextTrackIndex! >= 0 && nextTrackIndex! < meta.tracks.count) ? meta.tracks[nextTrackIndex!] : nil
+        
         ZStack {
-            effectiveBgColor.edgesIgnoringSafeArea(.all)
-            
-            if config.layoutMode == "Center" {
-                VStack(spacing: 0) {
-                    if config.verticalAlignment == "Bottom" || config.verticalAlignment == "Center" { Spacer() }
-                    
-                    HStack(alignment: .center, spacing: 40 * scale) {
-                        
-                        // Left Tracks (roughly 1/3 width)
-                        trackListBlock(startIndex: 0, endIndex: -1, isCenter: true, forceLeft: true)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        
-                        // Center Cover + Meta (roughly 1/3 width)
-                        VStack(spacing: 40 * scale) {
-                            if config.metadataPosition == "Top" {
-                                metadataBlock
-                            }
-                            
-                            if let cover = coverImage {
-                                Image(nsImage: cover)
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(width: 600 * scale * config.coverScale, height: 600 * scale * config.coverScale)
-                                    .shadow(color: .black.opacity(0.6), radius: 15 * scale, x: 0, y: 15 * scale)
-                            } else {
-                                Rectangle()
-                                    .fill(Color.gray)
-                                    .frame(width: 600 * scale * config.coverScale, height: 600 * scale * config.coverScale)
-                                    .shadow(color: .black.opacity(0.6), radius: 15 * scale, x: 0, y: 15 * scale)
-                            }
-                            
-                            if config.metadataPosition != "Top" {
-                                metadataBlock
-                            }
-                        }
-                        .frame(width: 600 * scale * max(1.0, config.coverScale)) // stable center width based on cover size
-                        
-                        // Right Tracks (roughly 1/3 width)
-                        trackListBlock(startIndex: 0, endIndex: -1, isCenter: true, forceRight: true)
-                            .frame(maxWidth: .infinity, alignment: .leading) // User requested left-aligned text for right tracks too
-                    }
-                    .padding(.horizontal, 60 * scale)
-                    
-                    if config.verticalAlignment == "Top" || config.verticalAlignment == "Center" { Spacer() }
-                }
-                .padding(.vertical, 60 * scale)
+            if isDiscTransition, let t1 = track, let t2 = nextTrack {
+                // Background color linearly crossfades over the entire transition
+                ZStack {
+                    colorForDisc(t1.discNumber).opacity(1.0 - transitionProgress)
+                    colorForDisc(t2.discNumber).opacity(transitionProgress)
+                }.edgesIgnoringSafeArea(.all)
             } else {
-                HStack(alignment: alignment, spacing: 80 * scale) {
-                    if config.layoutMode == "Right" {
-                        textContent.frame(maxWidth: .infinity, alignment: .leading)
-                        coverContent
-                    } else {
-                        // Default Left
-                        coverContent
-                        textContent.frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-                .padding(.horizontal, 100 * scale)
-                .padding(.vertical, 80 * scale)
+                effectiveBgColor.edgesIgnoringSafeArea(.all)
             }
+            
+            // Text opacity: Always 1.0, elements crossfade their opacities natively
+            let textOpacity = 1.0
+            Group {
+                if isCenter {
+                    VStack(spacing: 0) {
+                        if config.verticalAlignment == "Bottom" || config.verticalAlignment == "Center" { Spacer() }
+                        
+                        HStack(alignment: .center, spacing: 40 * scale) {
+                            
+                            VStack(alignment: .leading, spacing: 20 * scale) {
+                                let labelPos = meta.overrideDiscLabelPosition ?? config.discLabelPosition
+                                let showDiscText = (effectiveDiscStr != nil && labelPos == "Above Tracks")
+                                if showDiscText {
+                                    Text(effectiveDiscStr ?? "")
+                                        .font(.custom(effectiveFontFamilyName(), size: CGFloat(config.trackFontSize * 1.0) * scale).weight(.bold))
+                                        .foregroundColor(effectiveTextColor)
+                                        .padding(.bottom, -15 * scale)
+                                        .opacity(transitionOpacity)
+                                }
+                                
+                                trackListBlock(startIndex: 0, endIndex: -1, isCenter: true, forceLeft: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }.frame(maxWidth: .infinity, alignment: .leading)
+                            
+                            VStack(spacing: 40 * scale) {
+                                if config.metadataPosition == "Top" {
+                                    metadataBlock
+                                }
+                                
+                                if let cover = coverImage {
+                                    Image(nsImage: cover)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 600 * scale * config.coverScale, height: 600 * scale * config.coverScale)
+                                        .shadow(color: .black.opacity(0.6), radius: 15 * scale, x: 0, y: 15 * scale)
+                                } else {
+                                    Rectangle()
+                                        .fill(Color.gray)
+                                        .frame(width: 600 * scale * config.coverScale, height: 600 * scale * config.coverScale)
+                                        .shadow(color: .black.opacity(0.6), radius: 15 * scale, x: 0, y: 15 * scale)
+                                }
+                                
+                                if config.metadataPosition != "Top" {
+                                    metadataBlock
+                                }
+                            }
+                            .frame(width: 600 * scale * max(1.0, config.coverScale))
+                            
+                            VStack(alignment: .leading, spacing: 20 * scale) {
+                                let labelPos = meta.overrideDiscLabelPosition ?? config.discLabelPosition
+                                let showDiscText = (effectiveDiscStr != nil && labelPos == "Above Tracks")
+                                if showDiscText {
+                                    Text(effectiveDiscStr ?? "")
+                                        .font(.custom(effectiveFontFamilyName(), size: CGFloat(config.trackFontSize * 1.0) * scale).weight(.bold))
+                                        .foregroundColor(effectiveTextColor)
+                                        .padding(.bottom, -15 * scale)
+                                        .opacity(transitionOpacity)
+                                }
+                                
+                                trackListBlock(startIndex: 0, endIndex: -1, isCenter: true, forceRight: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }.frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.horizontal, 60 * scale)
+                        
+                        if config.verticalAlignment == "Top" || config.verticalAlignment == "Center" { Spacer() }
+                    }
+                    .padding(.vertical, 60 * scale)
+                } else {
+                    HStack(alignment: alignment, spacing: 80 * scale) {
+                        if config.layoutMode == "Right" {
+                            textContent.frame(maxWidth: .infinity, alignment: .leading)
+                            coverContent
+                        } else {
+                            coverContent
+                            textContent.frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding(.horizontal, 100 * scale)
+                    .padding(.vertical, 80 * scale)
+                }
+            }
+            .opacity(textOpacity)
         }
         .frame(maxHeight: .infinity)
         .environment(\.locale, cjkLanguageCode != nil ? Locale(identifier: cjkLanguageCode!) : Locale.current)
@@ -340,15 +445,45 @@ struct FrameView: View {
     @ViewBuilder
     var metadataBlock: some View {
         let isCenter = config.layoutMode == "Center"
+        ZStack(alignment: isCenter ? .center : .leading) {
+            metadataBlockForTrack(currentTrackIndex)
+                .opacity(isDiscTransition ? 1.0 - transitionProgress : 1.0)
+            
+            if isDiscTransition {
+                metadataBlockForTrack(nextTrackIndex ?? currentTrackIndex)
+                    .opacity(transitionProgress)
+            }
+        }
+    }
+    
+    @ViewBuilder
+    func metadataBlockForTrack(_ trackIndex: Int) -> some View {
+        let isCenter = config.layoutMode == "Center"
         VStack(alignment: isCenter ? .center : .leading, spacing: 10 * scale) {
-            Text(meta.title)
+            let labelPos = meta.overrideDiscLabelPosition ?? config.discLabelPosition
+            let uniqueDiscs = Array(Set(meta.tracks.compactMap { $0.discNumber }))
+            
+            let track = (trackIndex >= 0 && trackIndex < meta.tracks.count) ? meta.tracks[trackIndex] : nil
+            let autoDiscStr = "Disc \(track?.discNumber ?? 1)"
+            
+            let discStr = meta.discTitle ?? (uniqueDiscs.count > 1 ? autoDiscStr : "")
+            let showDiscText = (labelPos != "Hidden" && (meta.discTitle != nil || uniqueDiscs.count > 1))
+            
+            let displayTitle = (showDiscText && labelPos == "Right of Title") ? "\(meta.title) (\(discStr))" :
+                               (showDiscText && labelPos == "Left of Title") ? "(\(discStr)) \(meta.title)" :
+                               meta.title
+            
+            Text(displayTitle)
                 .font(.custom(effectiveFontFamilyName(), size: CGFloat(config.titleFontSize) * scale).weight(.bold))
                 .foregroundColor(effectiveTextColor)
                 .lineLimit(2)
                 .multilineTextAlignment(isCenter ? .center : .leading)
             
             let displayArtist = config.isCompilation ? "Various Artists" : meta.artist
-            Text("\(displayArtist) • \(meta.year) • \(meta.genre)")
+            let subtitleBase = "\(displayArtist) • \(meta.year) • \(meta.genre)"
+            let displaySubtitle = (showDiscText && labelPos == "Subtitle") ? "\(discStr) • \(subtitleBase)" : subtitleBase
+            
+            Text(displaySubtitle)
                 .font(.custom(effectiveFontFamilyName(), size: CGFloat(config.subtitleFontSize) * scale).weight(.medium))
                 .foregroundColor(effectiveTextColor.opacity(0.7))
         }
@@ -371,10 +506,9 @@ struct FrameView: View {
                         .stroke(Color.black.opacity(0.1), lineWidth: 1 * scale)
                         .blendMode(.overlay)
                 )
-                // macOS native stacked shadow
-                .shadow(color: .black.opacity(0.3), radius: 3 * scale, x: 0, y: 2 * scale)   // Contact shadow
-                .shadow(color: .black.opacity(0.15), radius: 12 * scale, x: 0, y: 8 * scale)  // Mid shadow
-                .shadow(color: .black.opacity(0.1), radius: 40 * scale, x: 0, y: 25 * scale) // Ambient deep shadow
+                .shadow(color: .black.opacity(0.3), radius: 3 * scale, x: 0, y: 2 * scale)
+                .shadow(color: .black.opacity(0.15), radius: 12 * scale, x: 0, y: 8 * scale)
+                .shadow(color: .black.opacity(0.1), radius: 40 * scale, x: 0, y: 25 * scale)
         } else {
             Rectangle()
                 .fill(Color.gray)
@@ -387,12 +521,29 @@ struct FrameView: View {
     
     @ViewBuilder
     var textContent: some View {
+        let labelPos = meta.overrideDiscLabelPosition ?? config.discLabelPosition
+        let showDiscText = (effectiveDiscStr != nil && labelPos == "Above Tracks")
+        
         VStack(alignment: .leading, spacing: 30 * scale) {
             if config.metadataPosition == "Top" {
                 metadataBlock
                 if config.verticalAlignment == "Split" { Spacer() }
+                if showDiscText {
+                    Text(effectiveDiscStr ?? "")
+                        .font(.custom(effectiveFontFamilyName(), size: CGFloat(config.trackFontSize * 1.0) * scale).weight(.bold))
+                        .foregroundColor(effectiveTextColor)
+                        .padding(.bottom, -15 * scale)
+                        .opacity(transitionOpacity)
+                }
                 trackListBlock(startIndex: 0, endIndex: -1, isCenter: false)
             } else {
+                if showDiscText {
+                    Text(effectiveDiscStr ?? "")
+                        .font(.custom(effectiveFontFamilyName(), size: CGFloat(config.trackFontSize * 1.0) * scale).weight(.bold))
+                        .foregroundColor(effectiveTextColor)
+                        .padding(.bottom, -15 * scale)
+                        .opacity(transitionOpacity)
+                }
                 trackListBlock(startIndex: 0, endIndex: -1, isCenter: false)
                 if config.verticalAlignment == "Split" { Spacer() }
                 metadataBlock
@@ -400,54 +551,70 @@ struct FrameView: View {
         }
     }
     
+    private func indicesForDisc(_ discNumber: Int) -> [Int] {
+        return meta.tracks.enumerated().filter { ($0.element.discNumber ?? 1) == discNumber }.map { $0.offset }
+    }
+    
     @ViewBuilder
     private func trackListBlock(startIndex: Int, endIndex: Int, isCenter: Bool, forceLeft: Bool = false, forceRight: Bool = false) -> some View {
         ZStack(alignment: .topLeading) {
-            let maxTracks = isCenter ? 24 : 12 // 24 tracks per page (12 per side) in Triptych mode
-            let currentPage = currentTrackIndex / maxTracks
-            let nextPage = (nextTrackIndex ?? currentTrackIndex) / maxTracks
+            let maxTracks = isCenter ? 24 : 12
             
-            // Current Page
+            let displayIndex = (isDiscTransition && transitionProgress > 0.5 && nextTrackIndex != nil) ? nextTrackIndex! : currentTrackIndex
+            let displayDisc = (displayIndex >= 0 && displayIndex < meta.tracks.count) ? (meta.tracks[displayIndex].discNumber ?? 1) : 1
+            
+            let indices = indicesForDisc(displayDisc)
+            
+            let currentPageIndex = indices.firstIndex(of: currentTrackIndex) ?? 0
+            let nextPageIndex = indices.firstIndex(of: nextTrackIndex ?? currentTrackIndex) ?? currentPageIndex
+            
+            let currentPage = currentPageIndex / maxTracks
+            let nextPage = nextPageIndex / maxTracks
+            
+            let isPageTurn = (!isDiscTransition && currentPage != nextPage)
+            
             let start1 = currentPage * maxTracks
-            let end1 = min(start1 + maxTracks, meta.tracks.count)
+            let end1 = min(start1 + maxTracks, indices.count)
+            let pageIndices1 = Array(indices[start1..<end1])
             
-            renderTrackGroup(start: start1, end: end1, isCenter: isCenter, forceLeft: forceLeft, forceRight: forceRight)
-                .opacity(currentPage != nextPage ? 1.0 - transitionProgress : 1.0)
+            renderTrackGroup(indices: pageIndices1, isCenter: isCenter, forceLeft: forceLeft, forceRight: forceRight)
+                .opacity(isDiscTransition ? transitionOpacity : (isPageTurn ? 1.0 - transitionProgress : 1.0))
             
-            // Next Page (crossfade)
-            if currentPage != nextPage {
+            if isPageTurn {
                 let start2 = nextPage * maxTracks
-                let end2 = min(start2 + maxTracks, meta.tracks.count)
+                let end2 = min(start2 + maxTracks, indices.count)
+                let pageIndices2 = Array(indices[start2..<end2])
                 
-                renderTrackGroup(start: start2, end: end2, isCenter: isCenter, forceLeft: forceLeft, forceRight: forceRight)
+                renderTrackGroup(indices: pageIndices2, isCenter: isCenter, forceLeft: forceLeft, forceRight: forceRight)
                     .opacity(transitionProgress)
             }
         }
     }
     
     @ViewBuilder
-    private func renderTrackGroup(start: Int, end: Int, isCenter: Bool, forceLeft: Bool, forceRight: Bool) -> some View {
+    private func renderTrackGroup(indices: [Int], isCenter: Bool, forceLeft: Bool, forceRight: Bool) -> some View {
         if isCenter {
-            let total = end - start
+            let total = indices.count
             let leftCount = (total + 1) / 2
-            let leftEnd = start + leftCount
+            let leftIndices = Array(indices[0..<leftCount])
+            let rightIndices = Array(indices[leftCount..<total])
             
             if forceLeft {
                 VStack(alignment: .leading, spacing: 15 * scale) {
-                    ForEach(start..<leftEnd, id: \.self) { i in
+                    ForEach(leftIndices, id: \.self) { i in
                         singleTrackRow(index: i, isCenter: isCenter)
                     }
                 }
             } else if forceRight {
                 VStack(alignment: .leading, spacing: 15 * scale) {
-                    ForEach(leftEnd..<end, id: \.self) { i in
+                    ForEach(rightIndices, id: \.self) { i in
                         singleTrackRow(index: i, isCenter: isCenter)
                     }
                 }
             }
         } else {
             VStack(alignment: .leading, spacing: 15 * scale) {
-                ForEach(start..<end, id: \.self) { i in
+                ForEach(indices, id: \.self) { i in
                     singleTrackRow(index: i, isCenter: isCenter)
                 }
             }
@@ -490,7 +657,7 @@ struct FrameView: View {
 // MARK: - Keynote "Magic Move" Text Component
 struct KeynoteTransitionText: View {
     let text: String
-    let transitionProgress: Double // 0.0 (Regular) to 1.0 (Bold)
+    let transitionProgress: Double
     let regularFont: NSFont
     let boldFont: NSFont
     let color: Color
@@ -523,27 +690,23 @@ struct KeynoteTransitionText: View {
         
         Text(text)
             .font(Font(boldFont))
-            .opacity(0.0) // Hidden Placeholder locks the frame size
+            .opacity(0.0)
             .overlay(
                 Canvas { context, size in
                     context.withCGContext { cgContext in
-                        // --- 1. OVERRIDE SWIFTUI PIXEL SNAPPING ---
                         cgContext.setAllowsFontSubpixelPositioning(true)
                         cgContext.setShouldSubpixelPositionFonts(true)
                         cgContext.setAllowsFontSubpixelQuantization(false)
                         cgContext.setShouldSubpixelQuantizeFonts(false)
                         
-                        // --- 2. FIX COORDINATE SYSTEM ---
                         cgContext.translateBy(x: 0, y: size.height)
                         cgContext.scaleBy(x: 1.0, y: -1.0)
                         
                         let baselineY = -boldFont.descender
                         
-                        // --- 3. DRAW GLYPHS MANUALLY ---
                         for item in items {
                             let currentX = item.regX * (1.0 - transitionProgress) + item.boldX * transitionProgress
                             
-                            // Draw Regular fading out
                             let regAttrs: [NSAttributedString.Key: Any] = [
                                 .font: regularFont,
                                 .foregroundColor: nsColor.withAlphaComponent(regAlpha)
@@ -553,7 +716,6 @@ struct KeynoteTransitionText: View {
                             cgContext.textPosition = CGPoint(x: currentX, y: baselineY)
                             CTLineDraw(regLine, cgContext)
                             
-                            // Draw Bold fading in
                             let boldAttrs: [NSAttributedString.Key: Any] = [
                                 .font: boldFont,
                                 .foregroundColor: nsColor.withAlphaComponent(boldAlpha)
@@ -602,54 +764,58 @@ struct LiveFrameView: View {
     var meta: AlbumMetadata
     var coverImage: NSImage?
     var currentTrackIndex: Int
+    var nextTrackIndex: Int? = nil
+    var transitionProgress: Double = 0.0
+    var isDiscTransition: Bool = false
     var bgColor: Color
     var scale: CGFloat
     
-    @AppStorage("layoutMode") private var dummy1 = ""
-    @AppStorage("verticalAlignment") private var dummy2 = ""
-    @AppStorage("metadataPosition") private var dummy3 = ""
-    @AppStorage("isCompilation") private var dummy4 = false
-    @AppStorage("trackNumberStyle") private var dummy5 = 0
-    @AppStorage("coverScale") private var dummy6 = 1.0
-    @AppStorage("fontFamily") private var dummy7 = ""
-    @AppStorage("customFontName") private var dummy8 = ""
-    @AppStorage("titleFontSize") private var dummy9 = 60.0
-    @AppStorage("subtitleFontSize") private var dummy10 = 40.0
-    @AppStorage("trackFontSize") private var dummy11 = 35.0
-    @AppStorage("useCustomColors") private var dummy12 = false
-    @AppStorage("customBgColorR") private var dummy13 = 0.0
-    @AppStorage("customBgColorG") private var dummy14 = 0.0
-    @AppStorage("customBgColorB") private var dummy15 = 0.0
-    @AppStorage("customTextColorR") private var dummy16 = 0.0
-    @AppStorage("customTextColorG") private var dummy17 = 1.0
-    @AppStorage("customTextColorB") private var dummy18 = 1.0
+    @AppStorage("layoutMode") private var layoutMode = "Left"
+    @AppStorage("verticalAlignment") private var verticalAlignment = "Center"
+    @AppStorage("metadataPosition") private var metadataPosition = "Top"
+    @AppStorage("isCompilation") private var isCompilation = false
+    @AppStorage("trackNumberStyle") private var trackNumberStyle = 1
+    @AppStorage("coverScale") private var coverScale: Double = 1.0
+    @AppStorage("fontFamily") private var fontFamily = "Lexend"
+    @AppStorage("customFontName") private var customFontName = ""
+    @AppStorage("titleFontSize") private var titleFontSize: Double = 60.0
+    @AppStorage("subtitleFontSize") private var subtitleFontSize: Double = 40.0
+    @AppStorage("trackFontSize") private var trackFontSize: Double = 35.0
+    @AppStorage("useCustomColors") private var useCustomColors = false
+    @AppStorage("customBgColorR") private var customBgColorR = 0.2
+    @AppStorage("customBgColorG") private var customBgColorG = 0.2
+    @AppStorage("customBgColorB") private var customBgColorB = 0.2
+    @AppStorage("customTextColorR") private var customTextColorR = 1.0
+    @AppStorage("customTextColorG") private var customTextColorG = 1.0
+    @AppStorage("customTextColorB") private var customTextColorB = 1.0
+    @AppStorage("discLabelPosition") private var discLabelPosition = "Right of Title"
     
     var body: some View {
         let config = FrameViewConfig(
-            layoutMode: dummy1,
-            verticalAlignment: dummy2,
-            metadataPosition: dummy3,
-            isCompilation: dummy4,
-            trackNumberStyle: dummy5,
-            coverScale: dummy6,
-            fontFamily: dummy7,
-            customFontName: dummy8,
-            titleFontSize: dummy9,
-            subtitleFontSize: dummy10,
-            trackFontSize: dummy11,
-            useCustomColors: dummy12,
-            bgR: dummy13,
-            bgG: dummy14,
-            bgB: dummy15,
-            textR: dummy16,
-            textG: dummy17,
-            textB: dummy18
+            layoutMode: layoutMode,
+            verticalAlignment: verticalAlignment,
+            metadataPosition: metadataPosition,
+            isCompilation: isCompilation,
+            trackNumberStyle: trackNumberStyle,
+            coverScale: coverScale,
+            fontFamily: fontFamily,
+            customFontName: customFontName,
+            titleFontSize: titleFontSize,
+            subtitleFontSize: subtitleFontSize,
+            trackFontSize: trackFontSize,
+            useCustomColors: useCustomColors,
+            bgR: customBgColorR, bgG: customBgColorG, bgB: customBgColorB,
+            textR: customTextColorR, textG: customTextColorG, textB: customTextColorB,
+            discLabelPosition: discLabelPosition
         )
         
         FrameView(
             meta: meta,
             coverImage: coverImage,
             currentTrackIndex: currentTrackIndex,
+            nextTrackIndex: nextTrackIndex,
+            transitionProgress: transitionProgress,
+            isDiscTransition: isDiscTransition,
             bgColor: bgColor,
             scale: scale,
             config: config

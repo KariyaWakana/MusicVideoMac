@@ -121,29 +121,53 @@ struct MetadataEditorView: View {
             
             List {
                 ForEach($viewModel.meta.tracks) { $track in
-                    HStack {
-                        Image(systemName: "line.3.horizontal")
-                            .foregroundColor(.secondary)
-                            .padding(.trailing, 4)
-                            .help("Drag to reorder")
+                    VStack(alignment: .leading, spacing: 0) {
+                        let indexInArray = viewModel.meta.tracks.firstIndex(where: { $0.id == track.id }) ?? 0
+                        let currentDisc = track.discNumber ?? 1
+                        let previousDisc = indexInArray > 0 ? (viewModel.meta.tracks[indexInArray - 1].discNumber ?? 1) : -1
                         
-                        let index = (viewModel.meta.tracks.firstIndex(where: { $0.id == track.id }) ?? 0) + 1
-                        Text(String(format: "%02d.", index))
-                            .foregroundColor(.secondary)
-                            .frame(width: 30, alignment: .leading)
+                        if currentDisc != previousDisc {
+                            Text("Disc \(currentDisc)")
+                                .font(.headline)
+                                .foregroundColor(.accentColor)
+                                .padding(.top, indexInArray == 0 ? 0 : 16)
+                                .padding(.bottom, 8)
+                        }
                         
-                        TextField("Track Title", text: $track.title, axis: .vertical)
-                            .lineLimit(1...4)
+                        HStack {
+                            Image(systemName: "line.3.horizontal")
+                                .foregroundColor(.secondary)
+                                .padding(.trailing, 4)
+                                .help("Drag to reorder")
+                            
+                            let trackIndexInDisc = viewModel.meta.tracks.prefix(upTo: indexInArray).filter { ($0.discNumber ?? 1) == currentDisc }.count + 1
+                            Text(String(format: "%02d.", trackIndexInDisc))
+                                .foregroundColor(.secondary)
+                                .frame(width: 30, alignment: .leading)
+                            
+                            TextField("Track Title", text: $track.title, axis: .vertical)
+                                .lineLimit(1...4)
+                                .disableAutocorrection(true)
+                        
+                            TextField("Track Artist (Optional)", text: Binding(
+                                get: { track.artist ?? "" },
+                                set: { track.artist = $0.isEmpty ? nil : $0 }
+                            ), axis: .vertical)
+                            .lineLimit(1...2)
                             .disableAutocorrection(true)
-                        
-                        TextField("Track Artist (Optional)", text: Binding(
-                            get: { track.artist ?? "" },
-                            set: { track.artist = $0.isEmpty ? nil : $0 }
-                        ), axis: .vertical)
-                        .lineLimit(1...2)
-                        .disableAutocorrection(true)
-                        
-                        Button(action: {
+                            
+                            VStack(spacing: 2) {
+                                Text("Disc").font(.system(size: 9)).foregroundColor(.secondary)
+                                TextField("", value: Binding(
+                                    get: { track.discNumber ?? 1 },
+                                    set: { track.discNumber = $0 }
+                                ), format: .number)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 35)
+                                .multilineTextAlignment(.center)
+                            }
+                            
+                            Button(action: {
                             virtualTrackText = ""
                             showingVirtualTrackPopover = track.id
                         }) {
@@ -186,11 +210,22 @@ struct MetadataEditorView: View {
                             }
                             .padding()
                         }
-                    }
+                    } // HStack
                     .padding(.vertical, 4)
-                }
+                } // VStack
+                } // ForEach
                 .onMove { indices, newOffset in
                     viewModel.meta.tracks.move(fromOffsets: indices, toOffset: newOffset)
+                    // Auto-fix disc numbers based on surrounding tracks if it was moved across disc boundaries
+                    if newOffset > 0 && newOffset <= viewModel.meta.tracks.count {
+                        let prevDisc = viewModel.meta.tracks[newOffset - 1].discNumber ?? 1
+                        for index in indices {
+                            let mappedIndex = index < newOffset ? newOffset - 1 : newOffset
+                            if mappedIndex >= 0 && mappedIndex < viewModel.meta.tracks.count {
+                                viewModel.meta.tracks[mappedIndex].discNumber = prevDisc
+                            }
+                        }
+                    }
                 }
             }
             
@@ -227,12 +262,19 @@ struct MetadataEditorView: View {
         panel.allowsMultipleSelection = false
         panel.allowedContentTypes = [.image]
         
-        panel.begin { response in
+        let handler: (NSApplication.ModalResponse) -> Void = { response in
             if response == .OK, let url = panel.url {
                 if let image = NSImage(contentsOf: url) {
                     openCropper(with: image)
                 }
             }
+        }
+        
+        if let window = NSApp.keyWindow {
+            panel.beginSheetModal(for: window, completionHandler: handler)
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+            panel.begin(completionHandler: handler)
         }
     }
     

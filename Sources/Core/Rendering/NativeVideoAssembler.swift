@@ -93,59 +93,131 @@ class NativeVideoAssembler {
         writer.startSession(atSourceTime: .zero)
         
         let fps: Double = 60.0
-        let timeScale: Int32 = 600000
+        let defaults = UserDefaults(suiteName: defaultsSuite) ?? UserDefaults.standard
+        let useSegmentAssembly = defaults.object(forKey: "useSegmentAssembly") == nil ? false : defaults.bool(forKey: "useSegmentAssembly")
+        let useCFR = defaults.object(forKey: "useConstantFrameRate") == nil ? true : defaults.bool(forKey: "useConstantFrameRate")
+        
+        if useSegmentAssembly && useCFR {
+            try await assembleWithSegments(meta: meta, coverImage: coverImage, destinationURL: outputURL, renderSize: renderSize, scale: scale, fps: fps, defaultsSuite: defaultsSuite, progress: progress)
+            return
+        }
+        
+        let timeScale: CMTimeScale = 600000
+        
+        let discTransitionDuration = defaults.double(forKey: "discTransitionDuration")
         
         var currentSeconds: Double = 0.0
         var lastAppendedSeconds: Double = -1.0
         
         for (index, track) in meta.tracks.enumerated() {
             let isLastTrack = (index == meta.tracks.count - 1)
+            let nextTrack = isLastTrack ? nil : meta.tracks[index + 1]
+            let isDiscTransition = !isLastTrack && track.discNumber != nextTrack?.discNumber
             
             let actualCrossfadeDuration = min(1.0, track.duration / 2.0)
-            let crossfadeFrames = isLastTrack ? 0 : Int(actualCrossfadeDuration * fps)
-            let staticDuration = track.duration - (isLastTrack ? 0 : actualCrossfadeDuration)
+            let crossfadeFrames = (isLastTrack || isDiscTransition) ? 0 : Int(actualCrossfadeDuration * fps)
+            let staticDuration = track.duration - ((isLastTrack || isDiscTransition) ? 0 : actualCrossfadeDuration)
             
             let staticImage = try await generateCGImage(for: index, meta: meta, coverImage: coverImage, size: renderSize, scale: scale, defaultsSuite: defaultsSuite)
             let staticBuffer = try createPixelBuffer(for: staticImage, adaptor: adaptor, renderSize: renderSize)
             
-            // Adaptive VFR: 1 FPS for static portions (prevents encoder bottleneck while keeping scrubbing buttery smooth)
-            var remainingStatic = staticDuration
-            while remainingStatic > 0 {
-                let step = min(1.0, remainingStatic)
-                let pts = CMTime(seconds: currentSeconds, preferredTimescale: timeScale)
-                let lastPts = CMTime(seconds: lastAppendedSeconds, preferredTimescale: timeScale)
-                
-                if CMTimeCompare(pts, lastPts) > 0 {
-                    try await appendPixelBuffer(staticBuffer, at: pts, adaptor: adaptor, input: videoInput)
-                    lastAppendedSeconds = currentSeconds
-                }
-                currentSeconds += step
-                remainingStatic -= step
-            }
+            let useCFR = defaults.object(forKey: "useConstantFrameRate") == nil ? true : defaults.bool(forKey: "useConstantFrameRate")
+            let vfrBaselineFPS = defaults.object(forKey: "vfrBaselineFPS") == nil ? 1.0 : defaults.double(forKey: "vfrBaselineFPS")
             
-            if !isLastTrack && crossfadeFrames > 0 {
-                let nextIndex = index + 1
-                for f in 0..<crossfadeFrames {
-                    // Yield to the main runloop and allow autorelease pools to drain, preventing memory bloat
-                    await Task.yield()
-                    
-                    // Temporal Anti-Aliasing (Motion Blur): Render 2 subframes at 120fps and blend to 60fps
-                    let t1 = (Double(f) + 0.0) / Double(crossfadeFrames)
-                    let t2 = (Double(f) + 0.5) / Double(crossfadeFrames)
-                    
-                    let morphedCG1 = try await generateCGImage(for: index, nextTrackIndex: nextIndex, transitionProgress: t1, meta: meta, coverImage: coverImage, size: renderSize, scale: scale, defaultsSuite: defaultsSuite)
-                    let morphedCG2 = try await generateCGImage(for: index, nextTrackIndex: nextIndex, transitionProgress: t2, meta: meta, coverImage: coverImage, size: renderSize, scale: scale, defaultsSuite: defaultsSuite)
-                    
-                    let blendedBuffer = try createBlendedPixelBuffer(cgImage1: morphedCG1, cgImage2: morphedCG2, adaptor: adaptor, renderSize: renderSize)
-                    
+            if useCFR {
+                // Constant Frame Rate (CFR): 60 FPS for static portions.
+                // Fast approach: We reuse the EXACT SAME static pixel buffer in memory.
+                // This skips all rendering/drawing CPU cost and pushes frames straight to the hardware encoder.
+                let endStaticSeconds = currentSeconds + staticDuration
+                while currentSeconds < endStaticSeconds {
                     let pts = CMTime(seconds: currentSeconds, preferredTimescale: timeScale)
                     let lastPts = CMTime(seconds: lastAppendedSeconds, preferredTimescale: timeScale)
                     
                     if CMTimeCompare(pts, lastPts) > 0 {
-                        try await appendPixelBuffer(blendedBuffer, at: pts, adaptor: adaptor, input: videoInput)
+                        // INLINE append logic to bypass async/await context switching overhead on the hot path
+                        while !videoInput.isReadyForMoreMediaData {
+                            try await Task.sleep(nanoseconds: 1_000_000)
+                        }
+                        adaptor.append(staticBuffer, withPresentationTime: pts)
                         lastAppendedSeconds = currentSeconds
                     }
-                    currentSeconds += 1.0 / fps
+                    
+                    let nextSeconds = currentSeconds + (1.0 / fps)
+                    if nextSeconds > endStaticSeconds {
+                        // Sync up the exact time boundary for audio perfect sync
+                        currentSeconds = endStaticSeconds
+                    } else {
+                        currentSeconds = nextSeconds
+                    }
+                }
+            } else {
+                // Adaptive VFR with baseline FPS to trick platforms into keeping 60fps transitions
+                var remainingStatic = staticDuration
+                let frameStep = 1.0 / max(1.0, vfrBaselineFPS)
+                while remainingStatic > 0 {
+                    let step = min(frameStep, remainingStatic)
+                    let pts = CMTime(seconds: currentSeconds, preferredTimescale: timeScale)
+                    let lastPts = CMTime(seconds: lastAppendedSeconds, preferredTimescale: timeScale)
+                    
+                    if CMTimeCompare(pts, lastPts) > 0 {
+                        // INLINE append logic to bypass async/await context switching overhead
+                        while !videoInput.isReadyForMoreMediaData {
+                            try await Task.sleep(nanoseconds: 1_000_000)
+                        }
+                        adaptor.append(staticBuffer, withPresentationTime: pts)
+                        lastAppendedSeconds = currentSeconds
+                    }
+                    currentSeconds += step
+                    remainingStatic -= step
+                }
+            }
+            
+            if !isLastTrack {
+                let nextIndex = index + 1
+                if isDiscTransition {
+                    let transitionSeconds = discTransitionDuration > 0 ? discTransitionDuration : 3.0
+                    let transitionFrames = Int(transitionSeconds * fps)
+                    
+                    if transitionFrames > 0 {
+                        for f in 0..<transitionFrames {
+                            await Task.yield()
+                            
+                            let t = Double(f) / Double(transitionFrames)
+                            let morphedCG = try await generateCGImage(for: index, nextTrackIndex: nextIndex, transitionProgress: t, isDiscTransition: true, meta: meta, coverImage: coverImage, size: renderSize, scale: scale, defaultsSuite: defaultsSuite)
+                            let buffer = try createPixelBuffer(for: morphedCG, adaptor: adaptor, renderSize: renderSize)
+                            
+                            let pts = CMTime(seconds: currentSeconds, preferredTimescale: timeScale)
+                            let lastPts = CMTime(seconds: lastAppendedSeconds, preferredTimescale: timeScale)
+                            if CMTimeCompare(pts, lastPts) > 0 {
+                                try await appendPixelBuffer(buffer, at: pts, adaptor: adaptor, input: videoInput)
+                                lastAppendedSeconds = currentSeconds
+                            }
+                            currentSeconds += 1.0 / fps
+                        }
+                    }
+                } else if crossfadeFrames > 0 {
+                    for f in 0..<crossfadeFrames {
+                        // Yield to the main runloop and allow autorelease pools to drain, preventing memory bloat
+                        await Task.yield()
+                        
+                        // Temporal Anti-Aliasing (Motion Blur): Render 2 subframes at 120fps and blend to 60fps
+                        let t1 = (Double(f) + 0.0) / Double(crossfadeFrames)
+                        let t2 = (Double(f) + 0.5) / Double(crossfadeFrames)
+                        
+                        let morphedCG1 = try await generateCGImage(for: index, nextTrackIndex: nextIndex, transitionProgress: t1, meta: meta, coverImage: coverImage, size: renderSize, scale: scale, defaultsSuite: defaultsSuite)
+                        let morphedCG2 = try await generateCGImage(for: index, nextTrackIndex: nextIndex, transitionProgress: t2, meta: meta, coverImage: coverImage, size: renderSize, scale: scale, defaultsSuite: defaultsSuite)
+                        
+                        let blendedBuffer = try createBlendedPixelBuffer(cgImage1: morphedCG1, cgImage2: morphedCG2, adaptor: adaptor, renderSize: renderSize)
+                        
+                        let pts = CMTime(seconds: currentSeconds, preferredTimescale: timeScale)
+                        let lastPts = CMTime(seconds: lastAppendedSeconds, preferredTimescale: timeScale)
+                        
+                        if CMTimeCompare(pts, lastPts) > 0 {
+                            try await appendPixelBuffer(blendedBuffer, at: pts, adaptor: adaptor, input: videoInput)
+                            lastAppendedSeconds = currentSeconds
+                        }
+                        currentSeconds += 1.0 / fps
+                    }
                 }
             }
             
@@ -178,13 +250,25 @@ class NativeVideoAssembler {
         
         // Sequentially insert all original audio tracks
         var currentAudioTime = CMTime.zero
-        for track in meta.tracks {
+        
+        for (index, track) in meta.tracks.enumerated() {
             let audioAsset = AVURLAsset(url: URL(fileURLWithPath: track.filePath))
             if let audioAssetTrack = try await audioAsset.loadTracks(withMediaType: .audio).first {
                 let start = CMTime(seconds: track.audioStartTime, preferredTimescale: 600)
                 let duration = CMTime(seconds: track.duration, preferredTimescale: 600)
                 try compAudioTrack.insertTimeRange(CMTimeRange(start: start, duration: duration), of: audioAssetTrack, at: currentAudioTime)
                 currentAudioTime = CMTimeAdd(currentAudioTime, duration)
+                
+                // Add silence gap if there's a disc transition
+                let isLastTrack = (index == meta.tracks.count - 1)
+                if !isLastTrack {
+                    let nextTrack = meta.tracks[index + 1]
+                    if track.discNumber != nextTrack.discNumber {
+                        let transitionSeconds = discTransitionDuration > 0 ? discTransitionDuration : 3.0
+                        let silenceDuration = CMTime(seconds: transitionSeconds, preferredTimescale: 600)
+                        currentAudioTime = CMTimeAdd(currentAudioTime, silenceDuration)
+                    }
+                }
             }
         }
         
@@ -195,7 +279,7 @@ class NativeVideoAssembler {
             try FileManager.default.removeItem(at: outputURL)
         }
         
-        let defaults = UserDefaults(suiteName: defaultsSuite) ?? UserDefaults.standard
+        
         let audioQuality = defaults.string(forKey: "audioQuality") ?? "AAC"
         let preset = (audioQuality == "Lossless") ? AVAssetExportPresetPassthrough : AVAssetExportPresetHighestQuality
         
@@ -204,7 +288,7 @@ class NativeVideoAssembler {
         }
         
         exportSession.outputURL = outputURL
-        exportSession.outputFileType = outputURL.pathExtension.lowercased() == "mov" ? .mov : .mp4
+        exportSession.outputFileType = outputURL.pathExtension.lowercased() == "mov" ? AVFileType.mov : AVFileType.mp4
         // Network optimization is not compatible with Passthrough mode sometimes, so conditionally set it
         exportSession.shouldOptimizeForNetworkUse = (audioQuality != "Lossless")
         
@@ -290,7 +374,7 @@ class NativeVideoAssembler {
     }
     
     @MainActor
-    private static func generateCGImage(for trackIndex: Int, nextTrackIndex: Int? = nil, transitionProgress: Double = 0.0, meta: AlbumMetadata, coverImage: NSImage?, size: CGSize, scale: CGFloat, defaultsSuite: String) throws -> CGImage {
+    private static func generateCGImage(for trackIndex: Int, nextTrackIndex: Int? = nil, transitionProgress: Double = 0.0, isDiscTransition: Bool = false, meta: AlbumMetadata, coverImage: NSImage?, size: CGSize, scale: CGFloat, defaultsSuite: String) throws -> CGImage {
         return try autoreleasepool {
             let defaults = UserDefaults(suiteName: defaultsSuite) ?? UserDefaults.standard
             
@@ -305,7 +389,7 @@ class NativeVideoAssembler {
                 bgColor = Color(red: r, green: g, blue: b)
             }
             
-            let view = FrameView(meta: meta, coverImage: coverImage, currentTrackIndex: trackIndex, nextTrackIndex: nextTrackIndex, transitionProgress: transitionProgress, bgColor: bgColor, scale: scale, config: FrameViewConfig(defaults: defaults))
+            let view = FrameView(meta: meta, coverImage: coverImage, currentTrackIndex: trackIndex, nextTrackIndex: nextTrackIndex, transitionProgress: transitionProgress, isDiscTransition: isDiscTransition, bgColor: bgColor, scale: scale, config: FrameViewConfig(defaults: defaults))
                 .frame(width: size.width, height: size.height)
             let renderer = ImageRenderer(content: view)
             renderer.scale = 1.0 // Real pixel size
@@ -315,5 +399,246 @@ class NativeVideoAssembler {
             }
             return cgImage
         }
+    }
+}
+import Foundation
+import AVFoundation
+import AppKit
+import CoreImage
+
+extension NativeVideoAssembler {
+    
+    static func assembleWithSegments(
+        meta: AlbumMetadata,
+        coverImage: NSImage?,
+        destinationURL: URL,
+        renderSize: CGSize,
+        scale: CGFloat,
+        fps: Double,
+        defaultsSuite: String,
+        progress: @escaping @MainActor (String, Double) -> Void
+    ) async throws {
+        
+        let timeScale: CMTimeScale = 600
+        
+        // 1. Setup temporary directory for segments
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true, attributes: nil)
+        defer {
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+        
+        await MainActor.run { progress("Generating Video Segments (CFR Fast Assembly)...", 0.0) }
+        
+        let defaults = UserDefaults(suiteName: defaultsSuite) ?? UserDefaults.standard
+        let discTransitionDuration = defaults.object(forKey: "discTransitionDuration") == nil ? 3.0 : defaults.double(forKey: "discTransitionDuration")
+        
+        var generatedStaticBlocks: [Int: URL] = [:]
+        var generatedTrackTransitions: [Int: URL] = [:]
+        var generatedDiscTransitions: [Int: URL] = [:]
+        
+        // Render segments
+        for (index, _) in meta.tracks.enumerated() {
+            let nextIndex = index + 1
+            let hasNextTrack = nextIndex < meta.tracks.count
+            
+            // Generate Static Block (1 second)
+            if generatedStaticBlocks[index] == nil {
+                let staticURL = tempDir.appendingPathComponent("static_\(index).mp4")
+                try await renderSegment(to: staticURL, renderSize: renderSize, fps: fps, framesCount: Int(fps)) { t in
+                    return try await generateCGImage(for: index, nextTrackIndex: nextIndex, transitionProgress: 0.0, isDiscTransition: false, meta: meta, coverImage: coverImage, size: renderSize, scale: scale, defaultsSuite: defaultsSuite)
+                }
+                generatedStaticBlocks[index] = staticURL
+            }
+            
+            await MainActor.run { progress("Rendering Segments...", Double(index) / Double(meta.tracks.count) * 0.5) }
+            
+            if hasNextTrack {
+                let isDiscTransition = meta.tracks[index].discNumber != meta.tracks[nextIndex].discNumber
+                
+                if isDiscTransition {
+                    let transSecs = discTransitionDuration > 0 ? discTransitionDuration : 3.0
+                    let transFrames = Int(transSecs * fps)
+                    if transFrames > 0 {
+                        let url = tempDir.appendingPathComponent("disc_trans_\(index).mp4")
+                        try await renderSegment(to: url, renderSize: renderSize, fps: fps, framesCount: transFrames) { f in
+                            let t = Double(f) / Double(transFrames)
+                            return try await generateCGImage(for: index, nextTrackIndex: nextIndex, transitionProgress: t, isDiscTransition: true, meta: meta, coverImage: coverImage, size: renderSize, scale: scale, defaultsSuite: defaultsSuite)
+                        }
+                        generatedDiscTransitions[index] = url
+                    }
+                } else {
+                    let crossfadeFrames = Int(1.0 * fps) // Standard track transition
+                    if crossfadeFrames > 0 {
+                        let url = tempDir.appendingPathComponent("track_trans_\(index).mp4")
+                        try await renderSegment(to: url, renderSize: renderSize, fps: fps, framesCount: crossfadeFrames) { f in
+                            // Temporal anti-aliasing logic from original
+                            let t1 = (Double(f) + 0.0) / Double(crossfadeFrames)
+                            return try await generateCGImage(for: index, nextTrackIndex: nextIndex, transitionProgress: t1, meta: meta, coverImage: coverImage, size: renderSize, scale: scale, defaultsSuite: defaultsSuite)
+                        }
+                        generatedTrackTransitions[index] = url
+                    }
+                }
+            }
+        }
+        
+        // 2. Assemble Composition
+        await MainActor.run { progress("Assembling Segments Losslessly...", 0.6) }
+        
+        let composition = AVMutableComposition()
+        guard let compVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid),
+              let compAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) else {
+            throw AssemblerError.writerInitializationFailed
+        }
+        
+        var currentVideoTime = CMTime.zero
+        var currentAudioTime = CMTime.zero
+        
+        let oneSecond = CMTime(seconds: 1.0, preferredTimescale: timeScale)
+        
+        for (index, track) in meta.tracks.enumerated() {
+            let nextIndex = index + 1
+            let hasNextTrack = nextIndex < meta.tracks.count
+            let isDiscTransition = hasNextTrack && (track.discNumber != meta.tracks[nextIndex].discNumber)
+            
+            var staticDuration = track.duration
+            if hasNextTrack {
+                staticDuration -= isDiscTransition ? discTransitionDuration : 1.0
+            }
+            staticDuration = max(0, staticDuration)
+            
+            // Insert Static Segments
+            if let staticURL = generatedStaticBlocks[index] {
+                let asset = AVURLAsset(url: staticURL)
+                if let vTrack = try await asset.loadTracks(withMediaType: .video).first {
+                    let fullSeconds = Int(floor(staticDuration))
+                    let remainder = staticDuration - Double(fullSeconds)
+                    
+                    // Loop the 1-second segment
+                    for _ in 0..<fullSeconds {
+                        try compVideoTrack.insertTimeRange(CMTimeRange(start: .zero, duration: oneSecond), of: vTrack, at: currentVideoTime)
+                        currentVideoTime = CMTimeAdd(currentVideoTime, oneSecond)
+                    }
+                    
+                    // Remainder slice
+                    if remainder > 0 {
+                        let remainderTime = CMTime(seconds: remainder, preferredTimescale: timeScale)
+                        try compVideoTrack.insertTimeRange(CMTimeRange(start: .zero, duration: remainderTime), of: vTrack, at: currentVideoTime)
+                        currentVideoTime = CMTimeAdd(currentVideoTime, remainderTime)
+                    }
+                }
+            }
+            
+            // Insert Transition
+            if hasNextTrack {
+                if isDiscTransition, let transURL = generatedDiscTransitions[index] {
+                    let asset = AVURLAsset(url: transURL)
+                    if let vTrack = try await asset.loadTracks(withMediaType: .video).first {
+                        let tDur = try await asset.load(.duration)
+                        try compVideoTrack.insertTimeRange(CMTimeRange(start: .zero, duration: tDur), of: vTrack, at: currentVideoTime)
+                        currentVideoTime = CMTimeAdd(currentVideoTime, tDur)
+                    }
+                } else if !isDiscTransition, let transURL = generatedTrackTransitions[index] {
+                    let asset = AVURLAsset(url: transURL)
+                    if let vTrack = try await asset.loadTracks(withMediaType: .video).first {
+                        let tDur = try await asset.load(.duration)
+                        try compVideoTrack.insertTimeRange(CMTimeRange(start: .zero, duration: tDur), of: vTrack, at: currentVideoTime)
+                        currentVideoTime = CMTimeAdd(currentVideoTime, tDur)
+                    }
+                }
+            }
+            
+            // Insert Audio
+            let audioAsset = AVURLAsset(url: URL(fileURLWithPath: track.filePath))
+            if let audioAssetTrack = try await audioAsset.loadTracks(withMediaType: .audio).first {
+                let start = CMTime(seconds: track.audioStartTime, preferredTimescale: timeScale)
+                let duration = CMTime(seconds: track.duration, preferredTimescale: timeScale)
+                try compAudioTrack.insertTimeRange(CMTimeRange(start: start, duration: duration), of: audioAssetTrack, at: currentAudioTime)
+                currentAudioTime = CMTimeAdd(currentAudioTime, duration)
+            }
+            
+            if isDiscTransition {
+                currentAudioTime = CMTimeAdd(currentAudioTime, CMTime(seconds: discTransitionDuration, preferredTimescale: timeScale))
+            }
+        }
+        
+        // 3. Export
+        await MainActor.run { progress("Exporting Passthrough Video...", 0.8) }
+        
+        try? FileManager.default.removeItem(at: destinationURL)
+        
+        guard let exportSession = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetPassthrough) else {
+            throw AssemblerError.writerInitializationFailed
+        }
+        exportSession.outputURL = destinationURL
+        exportSession.outputFileType = .mp4
+        
+        await exportSession.export()
+        
+        if exportSession.status == .failed {
+            throw exportSession.error ?? AssemblerError.writerInitializationFailed
+        }
+        
+        await MainActor.run { progress("Done!", 1.0) }
+    }
+    
+    private static func renderSegment(
+        to url: URL,
+        renderSize: CGSize,
+        fps: Double,
+        framesCount: Int,
+        frameGenerator: (Int) async throws -> CGImage
+    ) async throws {
+        let writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
+        
+        let videoSettings: [String: Any] = [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: Int(renderSize.width),
+            AVVideoHeightKey: Int(renderSize.height)
+        ]
+        
+        let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
+        videoInput.expectsMediaDataInRealTime = false
+        
+        let sourcePixelBufferAttributes: [String: Any] = [
+            kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA),
+            kCVPixelBufferWidthKey as String: Int(renderSize.width),
+            kCVPixelBufferHeightKey as String: Int(renderSize.height)
+        ]
+        
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: videoInput,
+            sourcePixelBufferAttributes: sourcePixelBufferAttributes
+        )
+        
+        if writer.canAdd(videoInput) {
+            writer.add(videoInput)
+        }
+        
+        guard writer.startWriting() else {
+            throw AssemblerError.writerInitializationFailed
+        }
+        writer.startSession(atSourceTime: .zero)
+        
+        var currentSeconds = 0.0
+        
+        for f in 0..<framesCount {
+            await Task.yield()
+            
+            let cgImage = try await frameGenerator(f)
+            let buffer = try createPixelBuffer(for: cgImage, adaptor: adaptor, renderSize: renderSize)
+            
+            let pts = CMTime(seconds: currentSeconds, preferredTimescale: 600)
+            
+            while !videoInput.isReadyForMoreMediaData {
+                try await Task.sleep(nanoseconds: 1_000_000)
+            }
+            adaptor.append(buffer, withPresentationTime: pts)
+            
+            currentSeconds += 1.0 / fps
+        }
+        
+        videoInput.markAsFinished()
+        await writer.finishWriting()
     }
 }

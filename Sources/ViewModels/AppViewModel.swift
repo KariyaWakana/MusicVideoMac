@@ -19,6 +19,12 @@ class AppViewModel {
     var activeSecurityScopedURL: URL? = nil
     var activeAlbumDirectory: URL? = nil
     
+    // Per-Disc Properties
+    var activeDisc: Int? = nil
+    var previewDisc: Int? = nil
+    var discBgColors: [String: [Double]] = [:]
+    var discTextColors: [String: [Double]] = [:]
+    
     // Using UserDefaults directly for @Observable integration, as @AppStorage is View-specific
     var videoResolution: String {
         get { UserDefaults.standard.string(forKey: "videoResolution") ?? "1080p" }
@@ -113,12 +119,14 @@ class AppViewModel {
         var trackH: CGFloat = 0
         if !meta.tracks.isEmpty {
             let maxTracks = layoutMode == "Center" ? 24 : 12
-            let trackCount = min(meta.tracks.count, maxTracks)
-            let tracksPerColumn = layoutMode == "Center" ? (trackCount + 1) / 2 : trackCount
-
             
-            for i in 0..<trackCount {
-                let track = meta.tracks[i]
+            let uniqueDiscs = Array(Set(meta.tracks.compactMap { $0.discNumber }))
+            let maxTracksPerDisc = uniqueDiscs.map { disc in meta.tracks.filter { ($0.discNumber ?? 1) == disc }.count }.max() ?? 0
+            let displayTrackCount = min(maxTracksPerDisc, maxTracks)
+            
+            let tracksPerColumn = layoutMode == "Center" ? (displayTrackCount + 1) / 2 : displayTrackCount
+            
+            for track in meta.tracks {
                 var prefix = track.title
                 if trackNumberStyle > 0 { prefix = "00. " + prefix }
                 
@@ -133,7 +141,9 @@ class AppViewModel {
                 
                 if (w1 + w2) > availW { trOverflow = true }
             }
-            trackH = CGFloat(tracksPerColumn) * CGFloat(trackSize * 1.2) * 1.2 + CGFloat(max(0, tracksPerColumn - 1)) * 15.0
+            
+            // 40 spacing between tracks. trackSize * 1.2 is height of one track.
+            trackH = CGFloat(tracksPerColumn) * CGFloat(trackSize * 1.2) + CGFloat(max(0, tracksPerColumn - 1)) * 15.0
         }
         
         // 4. Simulate Vertical Height
@@ -259,12 +269,19 @@ class AppViewModel {
         panel.allowsMultipleSelection = false
         panel.resolvesAliases = true
         
-        panel.begin { response in
+        let handler: (NSApplication.ModalResponse) -> Void = { response in
             if response == .OK, let url = panel.url {
                 Task { @MainActor in
                     self.loadAlbum(from: url)
                 }
             }
+        }
+        
+        if let window = NSApp.keyWindow {
+            panel.beginSheetModal(for: window, completionHandler: handler)
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+            panel.begin(completionHandler: handler)
         }
     }
     
@@ -395,6 +412,25 @@ class AppViewModel {
                         self.meta.artist = result.albumArtist ?? fetchedMeta.artist
                         self.meta.year = result.year ?? fetchedMeta.year
                         self.meta.genre = result.genre ?? fetchedMeta.genre
+                        
+                        // Auto-assign discNumber if network inference matches total tracks and all tracks currently have nil discNumber
+                        if let counts = fetchedMeta.itunesTrackCountsPerDisc, 
+                           self.meta.tracks.allSatisfy({ $0.discNumber == nil }),
+                           counts.values.reduce(0, +) == self.meta.tracks.count {
+                            
+                            let sortedDiscs = counts.keys.sorted()
+                            var trackIndex = 0
+                            for disc in sortedDiscs {
+                                let count = counts[disc]!
+                                for _ in 0..<count {
+                                    if trackIndex < self.meta.tracks.count {
+                                        self.meta.tracks[trackIndex].discNumber = disc
+                                    }
+                                    trackIndex += 1
+                                }
+                            }
+                            print("Auto-assigned disc numbers from iTunes tracklist.")
+                        }
                     }
                     
                     // ALWAYS load local user settings (.mv_settings.json) to override online/parsed metadata
@@ -441,20 +477,59 @@ class AppViewModel {
     }
     
     func renderVideo() {
+        let safeTitle = meta.title.replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .replacingOccurrences(of: "?", with: "")
+        
+        let format = UserDefaults.standard.string(forKey: "outputFormat") ?? "mp4"
+        
         let panel = NSSavePanel()
-        let safeTitle = self.meta.title.replacingOccurrences(of: "/", with: "_")
-        let format = outputFormat
-        panel.nameFieldStringValue = "\(safeTitle).\(format)"
+        let defaultFileName = activeDisc != nil ? "\(safeTitle) (Disc \(activeDisc!)).\(format)" : "\(safeTitle).\(format)"
+        panel.nameFieldStringValue = defaultFileName
         panel.allowedContentTypes = [UTType(filenameExtension: format) ?? .mpeg4Movie]
         
-        panel.begin { response in
+        let handler: (NSApplication.ModalResponse) -> Void = { response in
             if response == .OK, let outputURL = panel.url {
                 Task { @MainActor in
                     self.saveAlbumSettings()
-                    RenderQueueManager.shared.enqueue(meta: self.meta, coverImage: self.coverImage, resolution: self.videoResolution, outputURL: outputURL)
+                    
+                    var targetMeta = self.meta
+                    let defaults = UserDefaults.standard
+                    
+                    if let disc = self.activeDisc {
+                        targetMeta.tracks = self.meta.tracks.filter { ($0.discNumber ?? 1) == disc }
+                        
+                        let uniqueDiscs = Array(Set(self.meta.tracks.compactMap { $0.discNumber }))
+                        if uniqueDiscs.count > 1 {
+                            targetMeta.discTitle = "Disc \(disc)"
+                        }
+                        
+                        targetMeta.overrideDiscLabelPosition = defaults.string(forKey: "discLabelPosition") ?? "Right of Title"
+                        
+                        let dKey = String(disc)
+                        if defaults.bool(forKey: "useCustomColors") && defaults.bool(forKey: "separateDiscColors") {
+                            targetMeta.overrideBgColor = self.discBgColors[dKey]
+                            targetMeta.overrideTextColor = self.discTextColors[dKey]
+                        }
+                    } else {
+                        // All Discs mode: Pass the color mappings so the assembler can crossfade them
+                        if defaults.bool(forKey: "useCustomColors") && defaults.bool(forKey: "separateDiscColors") {
+                            targetMeta.discBgColors = self.discBgColors
+                            targetMeta.discTextColors = self.discTextColors
+                        }
+                    }
+                    
+                    RenderQueueManager.shared.enqueue(meta: targetMeta, coverImage: self.coverImage, resolution: self.videoResolution, outputURL: outputURL)
                     self.statusMessage = "Video added to Render Queue."
                 }
             }
+        }
+        
+        if let window = NSApp.keyWindow {
+            panel.beginSheetModal(for: window, completionHandler: handler)
+        } else {
+            NSApp.activate(ignoringOtherApps: true)
+            panel.begin(completionHandler: handler)
         }
     }
     
@@ -494,6 +569,7 @@ class AppViewModel {
                     track = Track(title: edit.title ?? originalTrack.title, 
                                   artist: edit.artist ?? originalTrack.artist, 
                                   filePath: originalTrack.filePath, 
+                                  discNumber: edit.discNumber ?? originalTrack.discNumber,
                                   audioStartTime: edit.audioStartTime ?? originalTrack.audioStartTime, 
                                   duration: edit.duration ?? originalTrack.duration, 
                                   artwork: originalTrack.artwork)
@@ -537,6 +613,10 @@ class AppViewModel {
         if let v = settings.textG { defaults.set(v, forKey: "customTextColorG") }
         if let v = settings.textB { defaults.set(v, forKey: "customTextColorB") }
         
+        if let v = settings.discBgColors { self.discBgColors = v }
+        if let v = settings.discTextColors { self.discTextColors = v }
+        if let v = settings.discLabelPosition { defaults.set(v, forKey: "discLabelPosition") }
+        
         print("Loaded settings from \(settingsURL)")
     }
     
@@ -555,6 +635,7 @@ class AppViewModel {
                 filename: (track.filePath as NSString).lastPathComponent,
                 title: track.title,
                 artist: track.artist,
+                discNumber: track.discNumber,
                 audioStartTime: track.audioStartTime,
                 duration: track.duration
             )
@@ -579,6 +660,10 @@ class AppViewModel {
         settings.textR = defaults.double(forKey: "customTextColorR")
         settings.textG = defaults.double(forKey: "customTextColorG")
         settings.textB = defaults.double(forKey: "customTextColorB")
+        
+        settings.discBgColors = self.discBgColors
+        settings.discTextColors = self.discTextColors
+        settings.discLabelPosition = defaults.string(forKey: "discLabelPosition")
         
         let settingsURL = dir.appendingPathComponent(".mv_settings.json")
         let coverURL = dir.appendingPathComponent("cover.png")
